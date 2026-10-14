@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f5fb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121118" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Fuel Log">
+  <title>Fuel Logger</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- หน้าหลัก -->
+  <main id="home" class="view">
+    <header class="topbar">
+      <h1>Fuel Logger</h1>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="refreshBtn" aria-label="รีเฟรช">
+          <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" aria-label="ตั้งค่า">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <section class="stats">
+      <div class="stat"><span class="stat-label">เฉลี่ย</span><span class="stat-value" id="statAvg">–</span><span class="stat-unit">กม./ลิตร</span></div>
+      <div class="stat"><span class="stat-label">ล่าสุด</span><span class="stat-value" id="statLast">–</span><span class="stat-unit">กม./ลิตร</span></div>
+      <div class="stat"><span class="stat-label">เดือนนี้</span><span class="stat-value" id="statMonth">–</span><span class="stat-unit">บาท</span></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>อัตรากินน้ำมัน</h2>
+        <div class="segmented" id="rangeSeg" role="tablist">
+          <button data-range="10">10 ครั้ง</button>
+          <button data-range="365">1 ปี</button>
+          <button data-range="all">ทั้งหมด</button>
+        </div>
+      </div>
+      <div id="chart" class="chart"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>ประวัติการเติม</h2></div>
+      <ul id="history" class="history"></ul>
+      <button id="moreBtn" class="text-btn" hidden>ดูเพิ่ม</button>
+    </section>
+
+    <button class="fab" id="addBtn" aria-label="เพิ่มการเติมน้ำมัน">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </main>
+
+  <!-- ฟอร์มเพิ่ม log -->
+  <section id="form" class="view sheet" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-close aria-label="ยกเลิก">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h1>เติมน้ำมัน</h1>
+      <span class="spacer"></span>
+    </header>
+    <form id="entryForm" class="form" novalidate>
+      <label class="field">
+        <span>วันที่</span>
+        <input type="date" name="date" required>
+      </label>
+      <div class="field">
+        <span>ชนิดน้ำมัน</span>
+        <div class="chips" id="typeChips"></div>
+      </div>
+      <label class="field">
+        <span>เลขไมล์ (กม.)</span>
+        <input type="text" name="mileage" inputmode="numeric" autocomplete="off" required>
+        <small id="mileageHint" class="hint"></small>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>ราคาต่อลิตร (฿)</span>
+          <input type="text" name="oilPrice" inputmode="decimal" autocomplete="off" required>
+        </label>
+        <label class="field">
+          <span>ยอดเงิน (฿)</span>
+          <input type="text" name="price" inputmode="decimal" autocomplete="off" required>
+        </label>
+      </div>
+      <div class="preview" id="preview"></div>
+      <div class="form-actions">
+        <button type="button" class="btn ghost" data-close>ยกเลิก</button>
+        <button type="submit" class="btn primary" id="saveBtn" disabled>บันทึก</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ตั้งค่า -->
+  <section id="settings" class="view sheet" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-close aria-label="กลับ">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h1>ตั้งค่า</h1>
+      <span class="spacer"></span>
+    </header>
+    <div class="form">
+      <label class="field">
+        <span>Setup code (ลิงก์ Apps Script)</span>
+        <textarea id="setupInput" rows="4" placeholder="https://script.google.com/macros/s/…/exec?k=…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+        <small class="hint">วางลิงก์ที่ได้จากการ Deploy Apps Script ต่อท้ายด้วย ?k=TOKEN</small>
+      </label>
+      <p id="settingsStatus" class="hint"></p>
+      <div class="form-actions">
+        <button type="button" class="btn ghost" id="clearSetupBtn">ล้างการเชื่อมต่อ</button>
+        <button type="button" class="btn primary" id="saveSetupBtn">เชื่อมต่อ</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
