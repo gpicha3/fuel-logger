@@ -14,6 +14,7 @@
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
+  <script src="theme.js"></script>
 </head>
 <body>
   <!-- หน้าหลัก -->
@@ -112,6 +113,22 @@
       <span class="spacer"></span>
     </header>
     <div class="form">
+      <h3 class="section-title">หน้าตา</h3>
+      <div class="field">
+        <span>โหมดสี</span>
+        <div class="segmented wide" id="themeSeg">
+          <button type="button" data-theme-mode="auto">ตามเครื่อง</button>
+          <button type="button" data-theme-mode="light">สว่าง</button>
+          <button type="button" data-theme-mode="dark">มืด</button>
+        </div>
+      </div>
+      <div class="field">
+        <span>สีหลัก</span>
+        <div class="swatches" id="swatches"></div>
+      </div>
+
+      <hr class="divider">
+      <h3 class="section-title">เชื่อมต่อ Google Sheet</h3>
       <label class="field">
         <span>Setup code (ลิงก์ Apps Script)</span>
         <textarea id="setupInput" rows="4" placeholder="https://script.google.com/macros/s/…/exec?k=…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>

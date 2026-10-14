@@ -406,7 +406,30 @@ function parseSetup(text) {
   return { url: `${u.origin}${u.pathname}`, k };
 }
 
+function renderThemeControls() {
+  const theme = loadTheme();
+  $$('#themeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.themeMode === theme.mode));
+  $('#swatches').innerHTML = Object.entries(ACCENTS).map(([id, a]) => `
+    <button type="button" class="swatch${id === theme.accent ? ' active' : ''}" data-accent="${id}" aria-label="${a.name}"
+      style="--sw-l: ${a.light}; --sw-d: ${a.dark}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>`).join('');
+}
+
+$('#themeSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-theme-mode]');
+  if (!b) return;
+  saveTheme({ ...loadTheme(), mode: b.dataset.themeMode });
+  renderThemeControls();
+  render();
+});
+$('#swatches').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-accent]');
+  if (!b) return;
+  saveTheme({ ...loadTheme(), accent: b.dataset.accent });
+  renderThemeControls();
+});
+
 function initSettings() {
+  renderThemeControls();
   $('#setupInput').value = state.setup ? `${state.setup.url}?k=${state.setup.k}` : '';
   $('#settingsStatus').textContent = state.setup ? 'เชื่อมต่อกับ Google Sheet อยู่' : 'ยังไม่ได้เชื่อมต่อ (ใช้ข้อมูลตัวอย่าง)';
   $('#settingsStatus').className = 'hint';
