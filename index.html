@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f6f5fb" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#121118" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121214" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -17,57 +17,165 @@
   <script src="theme.js"></script>
 </head>
 <body>
-  <!-- หน้าหลัก -->
-  <main id="home" class="view">
-    <header class="topbar">
-      <h1>Fuel Logger</h1>
-      <div class="topbar-actions">
-        <button class="icon-btn" id="refreshBtn" aria-label="รีเฟรช">
-          <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg>
-        </button>
-        <button class="icon-btn" id="settingsBtn" aria-label="ตั้งค่า">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
-      </div>
+  <div class="shell">
+    <header class="appbar">
+      <h1 id="pageTitle">Fuel Logger</h1>
+      <button class="icon-btn" id="settingsBtn" aria-label="ตั้งค่า">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
     </header>
 
-    <div id="banner" class="banner" hidden></div>
+    <div class="ptr" id="ptr" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg></div>
 
-    <section class="stats">
-      <div class="stat"><span class="stat-label">เฉลี่ย</span><span class="stat-value" id="statAvg">–</span><span class="stat-unit">กม./ลิตร</span></div>
-      <div class="stat"><span class="stat-label">ล่าสุด</span><span class="stat-value" id="statLast">–</span><span class="stat-unit">กม./ลิตร</span></div>
-      <div class="stat"><span class="stat-label">เดือนนี้</span><span class="stat-value" id="statMonth">–</span><span class="stat-unit">บาท</span></div>
-    </section>
+    <div class="viewport" id="viewport">
+      <div class="track" id="track">
+        <!-- หน้า 1: น้ำมัน -->
+        <main class="page" id="pageFuel" data-title="Fuel Logger">
+          <div class="page-inner">
+            <div id="banner" class="banner" hidden></div>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>อัตรากินน้ำมัน</h2>
-        <div class="segmented" id="rangeSeg" role="tablist">
-          <button data-range="10">10 ครั้ง</button>
-          <button data-range="365">1 ปี</button>
-          <button data-range="all">ทั้งหมด</button>
-        </div>
+            <section class="stats">
+              <div class="stat"><span class="stat-label">เฉลี่ย</span><span class="stat-value" id="statAvg">–</span><span class="stat-unit">กม./ลิตร</span></div>
+              <div class="stat"><span class="stat-label">ล่าสุด</span><span class="stat-value" id="statLast">–</span><span class="stat-unit">กม./ลิตร</span></div>
+              <div class="stat"><span class="stat-label">เดือนนี้</span><span class="stat-value" id="statMonth">–</span><span class="stat-unit">บาท</span></div>
+            </section>
+
+            <section class="car-card" id="carCard">
+              <svg class="car" viewBox="0 0 360 150" role="img" aria-label="Toyota Yaris ATIV สีดำ">
+                <defs>
+                  <linearGradient id="paint" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#4a515e"/><stop offset=".35" stop-color="#262a32"/><stop offset="1" stop-color="#121418"/>
+                  </linearGradient>
+                  <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#5d6b7c"/><stop offset=".55" stop-color="#202832"/><stop offset="1" stop-color="#151a21"/>
+                  </linearGradient>
+                  <radialGradient id="rim" cx=".5" cy=".5" r=".5">
+                    <stop offset="0" stop-color="#d7dbe1"/><stop offset=".7" stop-color="#8d939c"/><stop offset="1" stop-color="#565c66"/>
+                  </radialGradient>
+                  <g id="wheel">
+                    <circle r="29.5" fill="#141518"/>
+                    <circle r="25" fill="#22242a"/>
+                    <circle r="19.5" fill="url(#rim)"/>
+                    <g stroke="#2b2f36" stroke-width="2.8" stroke-linecap="round">
+                      <path d="M0-5V-17M0 5V17M-5 0H-17M5 0H17M-3.5-3.5L-12-12M3.5 3.5L12 12M3.5-3.5L12-12M-3.5 3.5L-12 12"/>
+                    </g>
+                    <circle r="5" fill="#3a3f47"/>
+                    <circle r="1.8" fill="#c9cdd3"/>
+                  </g>
+                </defs>
+                <ellipse class="car-shadow" cx="182" cy="138" rx="150" ry="7"/>
+                <g class="car-body">
+                  <!-- ซุ้มล้อ -->
+                  <path d="M53 106 A33 33 0 0 1 119 106 Z M235 106 A33 33 0 0 1 301 106 Z" fill="#0b0c0f"/>
+                  <!-- ตัวถัง -->
+                  <path fill="url(#paint)" stroke="#0a0b0e" stroke-width="2.5" stroke-linejoin="round"
+                    d="M22 98 C17 86 19 74 30 68 L72 62 C92 60 104 58 114 53 C132 34 152 26 186 24 L214 24 C240 25 256 34 277 51 C302 55 326 59 339 67 C347 72 349 86 345 98 L341 106 L301 106 A33 33 0 0 0 235 106 L119 106 A33 33 0 0 0 53 106 L30 106 C25 106 23 103 22 98 Z"/>
+                  <!-- กระจก -->
+                  <path fill="url(#glass)" stroke="#0a0b0e" stroke-width="2" stroke-linejoin="round"
+                    d="M123 55 C138 39 154 31 186 29.5 L212 29.5 C233 30.5 248 39 264 53 Z"/>
+                  <path d="M192 29.5 L189 55" stroke="#0a0b0e" stroke-width="4"/>
+                  <path d="M140 46 C150 38 160 34 176 32" stroke="#ffffff" stroke-opacity=".28" stroke-width="3" fill="none" stroke-linecap="round"/>
+                  <path d="M205 33 L222 34" stroke="#ffffff" stroke-opacity=".22" stroke-width="3" fill="none" stroke-linecap="round"/>
+                  <!-- เส้นสาย/ไฮไลต์ -->
+                  <path d="M40 78 C120 74 240 72 336 76" stroke="#ffffff" stroke-opacity=".14" stroke-width="2" fill="none"/>
+                  <path d="M118 62 C180 58 250 58 300 60" stroke="#ffffff" stroke-opacity=".18" stroke-width="1.5" fill="none"/>
+                  <path d="M190 57 L190 104" stroke="#0a0b0e" stroke-opacity=".55" stroke-width="1.5"/>
+                  <path d="M262 56 L268 102" stroke="#0a0b0e" stroke-opacity=".4" stroke-width="1.5"/>
+                  <!-- มือจับประตู กระจกข้าง -->
+                  <rect x="160" y="66" width="13" height="3.5" rx="1.75" fill="#0a0b0e" opacity=".7"/>
+                  <rect x="226" y="66" width="13" height="3.5" rx="1.75" fill="#0a0b0e" opacity=".7"/>
+                  <path d="M258 56 C262 50 270 49 273 54 L270 58 Z" fill="#1a1d23" stroke="#0a0b0e" stroke-width="1.5"/>
+                  <!-- ไฟหน้า LED / กระจังหน้า / ไฟท้าย -->
+                  <path d="M314 64 C324 64 334 66 341 70 L338 74 C328 72 320 70 312 69 Z" fill="#e8f1fb" stroke="#0a0b0e" stroke-width="1.5"/>
+                  <path d="M316 68 L337 71.5" stroke="#9fd0ff" stroke-width="1.5"/>
+                  <path d="M333 81 L346 80 L345 96 L331 97 Z" fill="#0f1114" stroke="#0a0b0e" stroke-width="1.5"/>
+                  <path d="M334 85 H345 M334 89 H345 M333 93 H344" stroke="#3a3f47" stroke-width="1.2"/>
+                  <path d="M21 72 L42 69 L41 76 L23 78 Z" fill="#c4202f" stroke="#0a0b0e" stroke-width="1.5"/>
+                  <path d="M24 74 L39 72" stroke="#ff7a85" stroke-width="1.2"/>
+                  <!-- ล้อ -->
+                  <g class="wheel" transform="translate(86 108)"><use href="#wheel"/></g>
+                  <g class="wheel" transform="translate(268 108)"><use href="#wheel"/></g>
+                </g>
+              </svg>
+              <div class="car-info">
+                <div class="car-name">Toyota Yaris ATIV</div>
+                <div class="car-odo"><span id="carOdo">–</span> กม.</div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <h2>อัตรากินน้ำมัน</h2>
+                <div class="segmented" id="rangeSeg" role="tablist">
+                  <button data-range="10">10 ครั้ง</button>
+                  <button data-range="365">1 ปี</button>
+                  <button data-range="all">ทั้งหมด</button>
+                </div>
+              </div>
+              <div id="chart" class="chart"></div>
+              <div id="legend" class="legend"></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>ประวัติการเติม</h2></div>
+              <ul id="history" class="history"></ul>
+              <div id="loadMore" class="load-more" hidden><span class="spinner"></span></div>
+            </section>
+          </div>
+        </main>
+
+        <!-- หน้า 2: สรุปรายเดือน -->
+        <main class="page" id="pageMonthly" data-title="สรุปรายเดือน">
+          <div class="page-inner">
+            <section class="stats">
+              <div class="stat"><span class="stat-label">มากที่สุด</span><span class="stat-value" id="mMax">–</span><span class="stat-unit" id="mMaxLabel">บาท</span></div>
+              <div class="stat"><span class="stat-label">เดือนนี้</span><span class="stat-value" id="mNow">–</span><span class="stat-unit" id="mNowLabel">บาท</span></div>
+              <div class="stat"><span class="stat-label">เฉลี่ยปีนี้</span><span class="stat-value" id="mAvg">–</span><span class="stat-unit">บาท/เดือน</span></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <h2>ค่าน้ำมันรายเดือน</h2>
+                <div class="segmented" id="mRangeSeg" role="tablist">
+                  <button data-range="12">12 เดือน</button>
+                  <button data-range="year">ปีนี้</button>
+                  <button data-range="all">ทั้งหมด</button>
+                </div>
+              </div>
+              <div id="mChart" class="chart"></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2>แต่ละเดือน</h2></div>
+              <ul id="mList" class="history"></ul>
+            </section>
+          </div>
+        </main>
       </div>
-      <div id="chart" class="chart"></div>
-      <div id="legend" class="legend"></div>
-    </section>
+    </div>
 
-    <section class="card">
-      <div class="card-head"><h2>ประวัติการเติม</h2></div>
-      <ul id="history" class="history"></ul>
-      <button id="moreBtn" class="text-btn" hidden>ดูเพิ่ม</button>
-    </section>
+    <nav class="tabbar" id="tabbar">
+      <button data-tab="0" class="active">
+        <svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M4 11h11M15 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg>
+        <span>เติมน้ำมัน</span>
+      </button>
+      <button data-tab="1">
+        <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
+        <span>รายเดือน</span>
+      </button>
+      <span class="tab-indicator" id="tabIndicator"></span>
+    </nav>
 
     <button class="fab" id="addBtn" aria-label="เพิ่มการเติมน้ำมัน">
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
     </button>
-  </main>
+  </div>
 
   <!-- ฟอร์มเพิ่ม log -->
-  <section id="form" class="view sheet" hidden>
+  <section id="form" class="sheet sheet-reveal" hidden>
     <header class="topbar">
       <button class="icon-btn" data-close aria-label="ยกเลิก">
-        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
       <h1>เติมน้ำมัน</h1>
       <span class="spacer"></span>
@@ -105,7 +213,7 @@
   </section>
 
   <!-- รายละเอียด / ลบ -->
-  <section id="detail" class="view sheet" hidden>
+  <section id="detail" class="sheet sheet-push" hidden>
     <header class="topbar">
       <button class="icon-btn" data-close aria-label="กลับ">
         <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
@@ -123,7 +231,7 @@
   </section>
 
   <!-- ตั้งค่า -->
-  <section id="settings" class="view sheet" hidden>
+  <section id="settings" class="sheet sheet-push" hidden>
     <header class="topbar">
       <button class="icon-btn" data-close aria-label="กลับ">
         <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
