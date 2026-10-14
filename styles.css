@@ -310,10 +310,10 @@ textarea { font-size: 14px; resize: vertical; font-family: ui-monospace, Menlo, 
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 20%, transparent), transparent);
   filter: blur(10px);
 }
-.car { position: relative; display: block; width: min(92%, 380px); aspect-ratio: 1727 / 827; }
+.car { position: relative; display: block; width: min(84%, 340px); aspect-ratio: 1211 / 747; }
 .car-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 .car-shadow {
-  position: absolute; left: 4%; right: 2%; bottom: -3%; height: 12%; border-radius: 50%;
+  position: absolute; left: 0; right: 4%; bottom: -4%; height: 14%; border-radius: 50%;
   background: radial-gradient(closest-side, rgba(0,0,0,.28), transparent); pointer-events: none;
 }
 /* ล้อ: วงกลมที่หมุน แล้วบีบแนวนอนให้เป็นวงรีตามมุมมองของรูป */
@@ -322,21 +322,21 @@ textarea { font-size: 14px; resize: vertical; font-family: ui-monospace, Menlo, 
   transform: translateX(-50%) scaleX(var(--k)); pointer-events: none;
 }
 .wheel img { width: 100%; height: 100%; display: block; }
-.wheel-front { left: 55.33%; top: 63.12%; height: 29.14%; --k: .593; }
-.wheel-rear { left: 91.46%; top: 60.46%; height: 24.67%; --k: .485; }
+.wheel-front { left: 25.64%; top: 62.92%; height: 29.85%; --k: .26; }
+.wheel-rear { left: 4.25%; top: 54.08%; height: 24.23%; --k: .232; }
 .car-stage.moving .wheel img, .car-stage.driving .wheel img { animation: wheel-spin .55s linear infinite; }
 .car-stage.intro .wheel img { animation: wheel-spin .5s linear 2; }
-@keyframes wheel-spin { to { transform: rotate(-360deg); } }
+@keyframes wheel-spin { to { transform: rotate(360deg); } }
 
 /* ไฟหน้า/ไฟท้าย: เปิดเองในโหมดมืด */
 .lamp, .beam { position: absolute; pointer-events: none; opacity: 0; transition: opacity .6s; mix-blend-mode: screen; }
 .lamp { border-radius: 50%; transform: translate(-50%, -50%); }
-.head-l { left: 3.8%; top: 52%; width: 9%; height: 22%; background: radial-gradient(closest-side, #fff 0, #cfe6ff 35%, rgba(140,190,255,.45) 60%, transparent); }
-.head-r { left: 40.5%; top: 53%; width: 24%; height: 24%; background: radial-gradient(closest-side, #fff 0, #d8ebff 30%, rgba(140,190,255,.4) 60%, transparent); }
-.tail { left: 98%; top: 37.4%; width: 7%; height: 15%; background: radial-gradient(closest-side, #ffd0d0 0, #ff4b4b 40%, rgba(255,40,40,.4) 65%, transparent); }
+.head-l { left: 40.2%; top: 53.8%; width: 26%; height: 22%; background: radial-gradient(closest-side, #fff 0, #cfe6ff 35%, rgba(140,190,255,.45) 60%, transparent); }
+.head-r { left: 93.4%; top: 54.6%; width: 14%; height: 20%; background: radial-gradient(closest-side, #fff 0, #d8ebff 30%, rgba(140,190,255,.4) 60%, transparent); }
+.tail { left: 2.3%; top: 32.3%; width: 5%; height: 10%; background: radial-gradient(closest-side, #ffd0d0 0, #ff4b4b 40%, rgba(255,40,40,.4) 65%, transparent); }
 .beam {
-  left: -18%; top: 58%; width: 70%; height: 44%;
-  background: radial-gradient(ellipse 60% 50% at 70% 30%, rgba(190,220,255,.32), transparent 70%);
+  left: 30%; top: 62%; width: 90%; height: 46%;
+  background: radial-gradient(ellipse 55% 50% at 40% 25%, rgba(190,220,255,.30), transparent 70%);
   filter: blur(4px);
 }
 .lamp.tail { mix-blend-mode: normal; }
@@ -354,7 +354,7 @@ textarea { font-size: 14px; resize: vertical; font-family: ui-monospace, Menlo, 
 .car-stage:active .car { transform: scale(.97); transition: transform .15s; }
 @keyframes car-in { from { transform: translateX(-120%); } }
 .car-stage.driving .car { animation: car-out .55s cubic-bezier(.55, 0, .8, .4) both; }
-@keyframes car-out { 0% { transform: none; } 18% { transform: translateX(3%) rotate(.6deg); } 100% { transform: translateX(-140%); } }
+@keyframes car-out { 0% { transform: none; } 18% { transform: translateX(-3%) rotate(-.6deg); } 100% { transform: translateX(150%) scale(1.15); } }
 .car-stage.returning .car { animation: car-in .8s var(--ease-out) both; }
 .car-stage.returning .wheel img { animation: wheel-spin .5s linear 2; }
 
@@ -440,6 +440,11 @@ input[type="range"]:focus { outline: none; }
 }
 .loan-cell.paid { background: color-mix(in srgb, var(--good) 18%, var(--surface)); color: var(--good); }
 .loan-cell.now { border-color: var(--accent); color: var(--accent); }
+.loan-cell.down { font-size: 11px; }
 .loan-cell.enter { animation: pop .35s var(--ease-spring) both; animation-delay: calc(var(--i) * 12ms); }
 .loan-note { font-size: 12px; color: var(--muted); margin: 10px 2px 0; }
 .empty-state { text-align: center; color: var(--muted); padding: 40px 16px; }
+
+/* กันตัวอักษรแถบสถานะ (สีขาว) จมหายบนพื้นสว่าง ถ้า iOS ยังใช้แบบโปร่งใสในโหมดสว่าง */
+.status-scrim { position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top); z-index: 30; pointer-events: none; }
+:root:not(.is-dark) .status-scrim { background: var(--accent); }

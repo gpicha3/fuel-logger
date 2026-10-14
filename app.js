@@ -488,10 +488,16 @@ function renderLoan() {
     body.innerHTML = `<p class="empty-state">${esc(state.loanError === 'needUpdate' ? t('loan.needUpdate') : t('loan.loading'))}</p>`;
     return;
   }
-  const rows = state.loan.rows.map((r) => ({ ...r, d: new Date(+r.ym.slice(0, 4), +r.ym.slice(5, 7) - 1, 1) }));
+  const all = state.loan.rows.map((r) => ({ ...r, d: new Date(+r.ym.slice(0, 4), +r.ym.slice(5, 7) - 1, 1) }));
+  // ยอดที่ซ้ำมากที่สุด = ค่างวด; แถวที่ยอดต่างออกไป (เช่นเงินดาวน์) ไม่นับเป็นงวด แต่รวมในยอดเงิน
+  const counts = new Map();
+  all.forEach((r) => counts.set(r.amount, (counts.get(r.amount) || 0) + 1));
+  const installment = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+  all.forEach((r) => { r.down = r.amount !== installment; });
+  const rows = all.filter((r) => !r.down);
   const paid = rows.filter((r) => r.paid);
-  const total = rows.reduce((s, r) => s + r.amount, 0);
-  const paidAmt = paid.reduce((s, r) => s + r.amount, 0);
+  const total = all.reduce((s, r) => s + r.amount, 0);
+  const paidAmt = all.filter((r) => r.paid).reduce((s, r) => s + r.amount, 0);
   const pct = rows.length ? paid.length / rows.length : 0;
   const next = rows.find((r) => !r.paid);
   const dueDay = state.loan.dueDay || 25;
@@ -511,7 +517,7 @@ function renderLoan() {
 
   const C = 2 * Math.PI * 54;
   const years = new Map();
-  rows.forEach((r) => {
+  all.forEach((r) => {
     const y = r.d.getFullYear();
     if (!years.has(y)) years.set(y, []);
     years.get(y).push(r);
@@ -520,7 +526,7 @@ function renderLoan() {
   const grid = [...years].map(([y, list]) => `
     <div class="loan-year">
       <h3>${LANG === 'th' ? y + 543 : y}</h3>
-      <div class="loan-grid">${list.map((r) => `<div class="loan-cell${r.paid ? ' paid' : ''}${monthKey(r.d) === nowK ? ' now' : ''}${anim ? ' enter' : ''}" style="--i:${ci++}">${mon(r.d)}</div>`).join('')}</div>
+      <div class="loan-grid">${list.map((r) => `<div class="loan-cell${r.paid ? ' paid' : ''}${r.down ? ' down' : ''}${monthKey(r.d) === nowK ? ' now' : ''}${anim ? ' enter' : ''}" style="--i:${ci++}">${r.down ? esc(t('loan.down')) : mon(r.d)}</div>`).join('')}</div>
     </div>`).join('');
 
   body.innerHTML = `

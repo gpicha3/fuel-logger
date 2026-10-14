@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#121214" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Fuel Log">
   <title>Fuel Logger</title>
   <link rel="manifest" href="manifest.json">
@@ -19,6 +19,7 @@
   <script src="i18n.js"></script>
 </head>
 <body>
+  <div class="status-scrim" aria-hidden="true"></div>
   <div class="shell">
     <header class="appbar">
       <div class="appbar-title">
@@ -54,7 +55,7 @@
               <span class="car" id="car">
                 <span class="car-shadow" aria-hidden="true"></span>
                 <span class="beam" aria-hidden="true"></span>
-                <img class="car-img" src="img/car.png" alt="" width="1100" height="526" draggable="false">
+                <img class="car-img" src="img/car.png" alt="" width="1211" height="747" draggable="false">
                 <span class="wheel wheel-front" aria-hidden="true"><img src="img/wheel-front.png" alt="" draggable="false"></span>
                 <span class="wheel wheel-rear" aria-hidden="true"><img src="img/wheel-rear.png" alt="" draggable="false"></span>
                 <span class="lamp head-l" aria-hidden="true"></span>
