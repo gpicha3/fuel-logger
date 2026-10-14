@@ -49,6 +49,7 @@
         </div>
       </div>
       <div id="chart" class="chart"></div>
+      <div id="legend" class="legend"></div>
     </section>
 
     <section class="card">
@@ -101,6 +102,24 @@
         <button type="submit" class="btn primary" id="saveBtn" disabled>บันทึก</button>
       </div>
     </form>
+  </section>
+
+  <!-- รายละเอียด / ลบ -->
+  <section id="detail" class="view sheet" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-close aria-label="กลับ">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h1>รายละเอียด</h1>
+      <span class="spacer"></span>
+    </header>
+    <div class="form">
+      <div id="detailBody" class="detail"></div>
+      <p class="hint">ถ้ากรอกผิด ให้ลบรายการนี้แล้วเพิ่มใหม่ (การลบจะลบแถวนี้ออกจาก Google Sheet ด้วย)</p>
+      <div class="form-actions">
+        <button type="button" class="btn danger" id="deleteBtn">ลบรายการนี้</button>
+      </div>
+    </div>
   </section>
 
   <!-- ตั้งค่า -->

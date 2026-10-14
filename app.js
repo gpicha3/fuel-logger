@@ -1,6 +1,8 @@
 'use strict';
 
 const OIL_TYPES = ['G95', 'G91', 'E20', 'G95 Premium'];
+const TYPE_CLASS = { G95: 't-g95', G91: 't-g91', E20: 't-e20', 'G95 Premium': 't-prem' };
+const typeClass = (t) => TYPE_CLASS[t] || 't-other';
 const KEYS = { setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', range: 'fl.range', demo: 'fl.demoRows' };
 const PAGE_SIZE = 20;
 
@@ -82,8 +84,8 @@ function toast(msg, ms = 2600) {
 // rate(n) = (Mileage(n+1) - Mileage(n)) / Liters(n+1)
 function entries() {
   const all = [
-    ...state.rows.map((r) => ({ ...r, pending: false })),
-    ...(state.setup ? state.pending.map((r) => ({ ...r, pending: true })) : []),
+    ...state.rows.map((r, i) => ({ ...r, pending: false, src: i })),
+    ...(state.setup ? state.pending.map((r, i) => ({ ...r, pending: true, src: i })) : []),
   ].map((r) => ({
     ...r,
     d: parseDate(r.date),
@@ -209,6 +211,9 @@ function niceStep(v) {
 function renderChart(list) {
   const el = $('#chart');
   const pts = inRange(list);
+  const types = [...new Set(pts.map((p) => p.type))];
+  $('#legend').innerHTML = pts.length <= 40
+    ? types.map((t) => `<span class="${typeClass(t)}">${esc(t)}</span>`).join('') : '';
   const W = el.clientWidth || 320, H = el.clientHeight || 240;
   const pad = { l: 34, r: 10, t: 34, b: 26 };
   const avg = average(list, pts);
@@ -242,7 +247,7 @@ function renderChart(list) {
   const line = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.mileage).toFixed(1)},${Y(p.rate).toFixed(1)}`).join('');
   const area = `${line}L${X(xMax)},${Y(0)}L${X(xMin)},${Y(0)}Z`;
   const showDots = pts.length <= 40;
-  const dots = showDots ? pts.map((p) => `<circle class="dot" cx="${X(p.mileage)}" cy="${Y(p.rate)}" r="3.5"/>`).join('') : '';
+  const dots = showDots ? pts.map((p) => `<circle class="dot ${typeClass(p.type)}" cx="${X(p.mileage)}" cy="${Y(p.rate)}" r="3.5"/>`).join('') : '';
   const avgLine = avg ? `<line class="avg" x1="${pad.l}" x2="${W - pad.r}" y1="${Y(avg)}" y2="${Y(avg)}"/>` : '';
 
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟอัตรากินน้ำมัน">
@@ -273,12 +278,14 @@ function renderChart(list) {
   svg.addEventListener('pointerleave', hide);
 }
 
+let historyItems = [];
 function renderHistory(list) {
   const items = [...list].reverse();
   const shown = items.slice(0, state.shown);
-  $('#history').innerHTML = shown.map((r) => `
-    <li>
-      <div class="h-main">${fmtDate(r.d)}<span class="badge">${esc(r.type)}</span>${r.pending ? '<span class="badge pending">รอส่ง</span>' : ''}</div>
+  historyItems = shown;
+  $('#history').innerHTML = shown.map((r, i) => `
+    <li data-i="${i}" role="button" tabindex="0">
+      <div class="h-main">${fmtDate(r.d)}<span class="badge ${typeClass(r.type)}">${esc(r.type)}</span>${r.pending ? '<span class="badge pending">รอส่ง</span>' : ''}</div>
       <div class="h-rate">${r.rate != null ? fmt(r.rate) : '–'}<small>${r.rate != null ? 'กม./ลิตร' : 'รอเติมครั้งถัดไป'}</small></div>
       <div class="h-sub">${fmtInt(r.mileage)} กม. · ${fmt(r.liters)} ล. · ฿${fmt(r.oilPrice)}/ล.</div>
       <div class="h-sub" style="text-align:right">฿${fmtInt(r.price)}</div>
@@ -309,7 +316,7 @@ function initForm() {
   const last = lastEntry();
   form.date.value = isoToday();
   selectedType = last ? last.type : OIL_TYPES[0];
-  $('#typeChips').innerHTML = OIL_TYPES.map((t) => `<button type="button" class="chip" data-type="${esc(t)}">${esc(t)}</button>`).join('');
+  $('#typeChips').innerHTML = OIL_TYPES.map((t) => `<button type="button" class="chip ${typeClass(t)}" data-type="${esc(t)}">${esc(t)}</button>`).join('');
   setType(selectedType);
   updateForm();
   setTimeout(() => form.mileage.focus(), 250);
@@ -394,6 +401,67 @@ form.addEventListener('submit', async (e) => {
   toast('กำลังบันทึกลง Sheet…');
   await sync({ quiet: true });
   if (!state.pending.length) toast('บันทึกลง Sheet แล้ว ✓');
+});
+
+/* ---------- detail / delete ---------- */
+let detailItem = null;
+
+function openDetail(item) {
+  detailItem = item;
+  const rows = [
+    ['วันที่', fmtDate(item.d)],
+    ['ชนิดน้ำมัน', `<span class="badge ${typeClass(item.type)}" style="margin:0">${esc(item.type)}</span>`],
+    ['เลขไมล์', `${fmtInt(item.mileage)} กม.`],
+    ['ราคาต่อลิตร', `฿${fmt(item.oilPrice)}`],
+    ['ยอดเงิน', `฿${fmt(item.price)}`],
+    ['ปริมาณ', `${fmt(item.liters)} ลิตร`],
+    ['อัตรากินน้ำมัน', item.rate != null ? `${fmt(item.rate)} กม./ลิตร` : 'รอเติมครั้งถัดไป'],
+  ];
+  if (item.pending) rows.push(['สถานะ', '<span class="badge pending" style="margin:0">รอส่งขึ้น Sheet</span>']);
+  $('#detailBody').innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join('');
+  $('#deleteBtn').disabled = false;
+  open('detail');
+}
+
+$('#history').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-i]');
+  if (li) openDetail(historyItems[+li.dataset.i]);
+});
+
+$('#deleteBtn').addEventListener('click', async () => {
+  const item = detailItem;
+  if (!item) return;
+  if (!confirm(`ลบรายการ ${fmtDate(item.d)} · ${fmtInt(item.mileage)} กม. · ฿${fmtInt(item.price)} ?`)) return;
+
+  // ยังไม่ได้เชื่อม Sheet (โหมดตัวอย่าง) หรือยังรอส่ง → ลบในเครื่องอย่างเดียว
+  if (!state.setup || item.pending) {
+    if (item.pending) { state.pending.splice(item.src, 1); store.set(KEYS.pending, state.pending); }
+    else { state.rows.splice(item.src, 1); store.set(KEYS.demo, state.rows); }
+    closeSheets(); render(); toast('ลบแล้ว');
+    return;
+  }
+  if (!item.row) {
+    toast('ต้องอัปเดต Apps Script เป็นเวอร์ชันใหม่ก่อนจึงจะลบได้', 4000);
+    return;
+  }
+  const btn = $('#deleteBtn');
+  btn.disabled = true;
+  btn.textContent = 'กำลังลบ…';
+  try {
+    const rows = await apiPost({ action: 'delete', row: item.row, mileage: item.mileage, price: item.price });
+    state.rows = rows;
+    store.set(KEYS.rows, rows);
+    closeSheets(); render(); toast('ลบออกจาก Sheet แล้ว ✓');
+  } catch (err) {
+    console.error(err);
+    toast(err.message === 'mismatch' || err.message === 'not found'
+      ? 'ข้อมูลใน Sheet เปลี่ยนไปแล้ว กำลังรีเฟรช ลองลบอีกครั้ง'
+      : 'ลบไม่สำเร็จ ลองใหม่อีกครั้ง', 3500);
+    if (err.message === 'mismatch' || err.message === 'not found') { closeSheets(); sync({ quiet: true }); }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'ลบรายการนี้';
+  }
 });
 
 /* ---------- settings ---------- */
