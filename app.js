@@ -3,7 +3,10 @@
 const OIL_TYPES = ['G95', 'G91', 'E20', 'G95 Premium'];
 const TYPE_CLASS = { G95: 't-g95', G91: 't-g91', E20: 't-e20', 'G95 Premium': 't-prem' };
 const typeClass = (t) => TYPE_CLASS[t] || 't-other';
-const KEYS = { setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', range: 'fl.range', mRange: 'fl.mRange', tab: 'fl.tab', demo: 'fl.demoRows' };
+const KEYS = {
+  setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', mRange: 'fl.mRange', tab: 'fl.tab',
+  demo: 'fl.demoRows', ptt: 'fl.ptt', loan: 'fl.loan',
+};
 const PAGE_SIZE = 20;
 
 // ข้อมูลตัวอย่าง (ใช้ตอนยังไม่ได้เชื่อม Sheet)
@@ -38,9 +41,11 @@ const state = {
   setup: store.get(KEYS.setup, null),
   rows: [],
   pending: store.get(KEYS.pending, []),
-  range: store.get(KEYS.range, 'all'),
+  range: '365', // ค่าเริ่มต้นของกราฟ = 1 ปี
   mRange: store.get(KEYS.mRange, '12'),
   tab: store.get(KEYS.tab, 0),
+  loan: store.get(KEYS.loan, null),
+  loanError: null,
   shown: PAGE_SIZE,
   loading: false,
   animate: true, // เล่น animation กราฟในการ render ครั้งถัดไป
@@ -52,9 +57,17 @@ const num = (s) => {
   const n = parseFloat(String(s ?? '').replace(/[,\s฿]/g, ''));
   return Number.isFinite(n) ? n : NaN;
 };
-const fmt = (n, d = 2) => Number.isFinite(n) ? n.toLocaleString('th-TH', { minimumFractionDigits: d, maximumFractionDigits: d }) : '–';
-const fmtInt = (n) => Number.isFinite(n) ? Math.round(n).toLocaleString('th-TH') : '–';
-const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const locale = () => (LANG === 'th' ? 'th-TH' : 'en-US');
+const fmt = (n, d = 2) => Number.isFinite(n) ? n.toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d }) : '–';
+const fmtInt = (n) => Number.isFinite(n) ? Math.round(n).toLocaleString(locale()) : '–';
+const mon = (d) => MONTHS[LANG][d.getMonth()];
+const yearOf = (d, short = true) => {
+  const y = LANG === 'th' ? d.getFullYear() + 543 : d.getFullYear();
+  return short ? String(y).slice(-2) : String(y);
+};
+const fmtMonth = (d) => `${mon(d)} ${yearOf(d)}`;
+const fmtMonthLong = (d) => `${mon(d)} ${yearOf(d, false)}`;
+const fmtDate = (d) => d ? `${d.getDate()} ${mon(d)} ${yearOf(d)}` : '–';
 function parseDate(s) {
   if (!s) return null;
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
@@ -67,19 +80,19 @@ function parseDate(s) {
   const d = new Date(s);
   return isNaN(d) ? null : d;
 }
-const fmtMonth = (d, long = false) => `${TH_MONTHS[d.getMonth()]} ${String(d.getFullYear() + 543).slice(long ? 0 : -2)}`;
-const fmtDate = (d) => d ? `${d.getDate()} ${TH_MONTHS[d.getMonth()]} ${String(d.getFullYear() + 543).slice(-2)}` : '–';
 const isoToday = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function toast(msg, ms = 2600) {
   const el = $('#toast');
   el.textContent = msg;
   el.hidden = false;
+  el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
   clearTimeout(toast.t);
   toast.t = setTimeout(() => { el.hidden = true; }, ms);
 }
@@ -104,19 +117,18 @@ function entries() {
   return all;
 }
 
-function apiBase() {
-  return state.setup ? state.setup.url : null;
-}
-
-async function apiGet() {
-  const res = await fetch(`${apiBase()}?k=${encodeURIComponent(state.setup.k)}`, { cache: 'no-store' });
+/* ---------- API (Google Apps Script) ---------- */
+async function apiGet(action) {
+  const q = new URLSearchParams({ k: state.setup.k });
+  if (action) q.set('action', action);
+  const res = await fetch(`${state.setup.url}?${q}`, { cache: 'no-store' });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-  return data.rows;
+  return data;
 }
 
 async function apiPost(entry) {
-  const res = await fetch(apiBase(), {
+  const res = await fetch(state.setup.url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // text/plain เพื่อเลี่ยง CORS preflight
     body: JSON.stringify({ ...entry, k: state.setup.k }),
@@ -129,7 +141,7 @@ async function apiPost(entry) {
 async function sync({ quiet = false } = {}) {
   if (!state.setup || state.loading) return;
   state.loading = true;
-  $('#carCard').classList.add('moving');
+  $('#carStage').classList.add('moving');
   try {
     // ส่งรายการที่ค้างอยู่ก่อน
     while (state.pending.length) {
@@ -138,17 +150,16 @@ async function sync({ quiet = false } = {}) {
       store.set(KEYS.pending, state.pending);
       state.rows = rows;
     }
-    state.rows = await apiGet();
+    state.rows = (await apiGet()).rows;
     store.set(KEYS.rows, state.rows);
-    if (!quiet) toast('อัปเดตข้อมูลแล้ว');
+    loadLoan();
+    if (!quiet) toast(t('t.synced'));
   } catch (err) {
     console.error(err);
-    const offline = !navigator.onLine;
-    toast(err.message === 'unauthorized' ? 'Token ไม่ถูกต้อง ตรวจสอบ Setup code อีกครั้ง'
-      : offline ? 'ออฟไลน์อยู่ จะส่งข้อมูลเมื่อกลับมาออนไลน์' : 'เชื่อมต่อ Sheet ไม่สำเร็จ ลองใหม่อีกครั้ง', 3500);
+    toast(err.message === 'unauthorized' ? t('t.badToken') : !navigator.onLine ? t('t.offline') : t('t.syncFailed'), 3500);
   } finally {
     state.loading = false;
-    $('#carCard').classList.remove('moving');
+    $('#carStage').classList.remove('moving');
     state.animate = true;
     render();
   }
@@ -163,35 +174,33 @@ function render({ keepHistory = false } = {}) {
   renderChart(list);
   if (!keepHistory) renderHistory(list, { reset: true });
   renderMonthly(list);
+  renderLoan();
   state.animate = false;
-}
-
-function renderCar(list) {
-  const last = list[list.length - 1];
-  $('#carOdo').textContent = last ? `เลขไมล์ ${fmtInt(last.mileage)}` : '–';
 }
 
 function renderBanner() {
   const el = $('#banner');
   if (!state.setup) {
-    el.innerHTML = 'โหมดตัวอย่าง: ข้อมูลยังไม่ได้เชื่อมกับ Google Sheet <button data-open="settings">ตั้งค่าการเชื่อมต่อ</button>';
+    el.innerHTML = `${esc(t('banner.demo'))} <button data-open="settings">${esc(t('banner.connect'))}</button>`;
     el.hidden = false;
   } else if (state.pending.length) {
-    el.innerHTML = `มี ${state.pending.length} รายการรอส่งขึ้น Sheet <button id="retryBtn">ส่งเลย</button>`;
+    el.innerHTML = `${esc(t('banner.pending', { n: state.pending.length }))} <button id="retryBtn">${esc(t('banner.sendNow'))}</button>`;
     el.hidden = false;
   } else {
     el.hidden = true;
   }
 }
 
+function renderCar(list) {
+  const last = list[list.length - 1];
+  $('#carOdo').textContent = last ? t('car.odo', { n: fmtInt(last.mileage) }) : '';
+}
+
 function inRange(list) {
   const withRate = list.filter((r) => r.rate != null && Number.isFinite(r.rate));
-  if (state.range === '10') return withRate.slice(-10);
-  if (state.range === '365') {
-    const cutoff = Date.now() - 365 * 864e5;
-    return withRate.filter((r) => r.d && r.d.getTime() >= cutoff);
-  }
-  return withRate;
+  if (state.range === 'all') return withRate;
+  const cutoff = Date.now() - Number(state.range) * 864e5;
+  return withRate.filter((r) => r.d && r.d.getTime() >= cutoff);
 }
 
 // ค่าเฉลี่ยแบบถ่วงน้ำหนัก = ระยะทางรวม / ลิตรรวม ของช่วงที่เลือก
@@ -210,7 +219,8 @@ function renderStats(list) {
   const pts = inRange(list);
   const avg = average(list, pts);
   $('#statAvg').textContent = avg ? fmt(avg) : '–';
-  const last = pts[pts.length - 1];
+  const withRate = list.filter((r) => r.rate != null);
+  const last = withRate[withRate.length - 1];
   $('#statLast').textContent = last ? fmt(last.rate) : '–';
   const now = new Date();
   const month = list.filter((r) => r.d && r.d.getMonth() === now.getMonth() && r.d.getFullYear() === now.getFullYear())
@@ -226,8 +236,7 @@ function renderChart(list) {
   const el = $('#chart');
   const pts = inRange(list);
   const types = [...new Set(pts.map((p) => p.type))];
-  $('#legend').innerHTML = pts.length <= 40
-    ? types.map((t) => `<span class="${typeClass(t)}">${esc(t)}</span>`).join('') : '';
+  $('#legend').innerHTML = types.map((ty) => `<span class="${typeClass(ty)}">${esc(ty)}</span>`).join('');
   const W = el.clientWidth || 320, H = el.clientHeight || 240;
   const pad = { l: 34, r: 10, t: 34, b: 26 };
   const avg = average(list, pts);
@@ -235,7 +244,7 @@ function renderChart(list) {
   $$('#rangeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.range === state.range));
 
   if (pts.length < 2) {
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text class="empty" x="${W / 2}" y="${H / 2}" text-anchor="middle">ต้องมีข้อมูลอย่างน้อย 3 ครั้งเพื่อแสดงกราฟ</text></svg>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text class="empty" x="${W / 2}" y="${H / 2}" text-anchor="middle">${esc(t('chart.notEnough'))}</text></svg>`;
     return;
   }
 
@@ -258,15 +267,15 @@ function renderChart(list) {
     grid += `<text class="axis-label" x="${X(v)}" y="${H - 6}" text-anchor="${anchor}">${fmtInt(v)}</text>`;
   }
 
+  const anim = state.animate && !reduceMotion;
   const line = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.mileage).toFixed(1)},${Y(p.rate).toFixed(1)}`).join('');
   const area = `${line}L${X(xMax)},${Y(0)}L${X(xMin)},${Y(0)}Z`;
-  const showDots = pts.length <= 40;
-  const dots = showDots ? pts.map((p) => `<circle class="dot ${typeClass(p.type)}" cx="${X(p.mileage)}" cy="${Y(p.rate)}" r="3.5"/>`).join('') : '';
+  const dots = pts.length <= 40
+    ? pts.map((p, i) => `<circle class="dot ${typeClass(p.type)}${anim ? ' pop' : ''}" style="--i:${i}" cx="${X(p.mileage)}" cy="${Y(p.rate)}" r="3.5"/>`).join('') : '';
   const avgLine = avg ? `<line class="avg" x1="${pad.l}" x2="${W - pad.r}" y1="${Y(avg)}" y2="${Y(avg)}"/>` : '';
 
-  const anim = state.animate && !reduceMotion;
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟอัตรากินน้ำมัน">
-      ${grid}${avgLine}<path class="area${anim ? ' draw' : ''}" d="${area}"/><path class="line" d="${line}"/>${anim ? dots.replaceAll('class="dot ', 'class="dot pop ') : dots}
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('chart.rate'))}">
+      ${grid}${avgLine}<path class="area${anim ? ' draw' : ''}" d="${area}"/><path class="line" d="${line}"/>${dots}
       <line class="cursor" y1="${pad.t}" y2="${H - pad.b}" visibility="hidden"/>
       <circle class="dot active" r="5" visibility="hidden"/>
     </svg><div class="tooltip" hidden></div>`;
@@ -277,7 +286,6 @@ function renderChart(list) {
     const path = $('.line', svg);
     path.style.setProperty('--len', Math.ceil(path.getTotalLength()));
     path.classList.add('draw');
-    $$('.dot.pop', svg).forEach((d, i) => d.style.setProperty('--i', i));
   }
   const pick = (clientX) => {
     const rect = svg.getBoundingClientRect();
@@ -287,7 +295,7 @@ function renderChart(list) {
     const cx = X(best.mileage), cy = Y(best.rate);
     cursor.setAttribute('x1', cx); cursor.setAttribute('x2', cx); cursor.setAttribute('visibility', 'visible');
     marker.setAttribute('cx', cx); marker.setAttribute('cy', cy); marker.setAttribute('visibility', 'visible');
-    tip.innerHTML = `<b>${fmt(best.rate)}</b> กม./ล. · ${esc(best.type)}<br>${fmtDate(best.d)} · ${fmtInt(best.mileage)} กม.`;
+    tip.innerHTML = `<b>${fmt(best.rate)}</b> ${esc(t('unit.kml.short'))} · ${esc(best.type)}<br>${fmtDate(best.d)} · ${fmtInt(best.mileage)} ${esc(t('unit.km'))}`;
     tip.hidden = false;
     const px = (cx / W) * rect.width;
     const half = tip.offsetWidth / 2;
@@ -299,14 +307,15 @@ function renderChart(list) {
   svg.addEventListener('pointerleave', hide);
 }
 
+/* ---------- ประวัติ (โหลดต่อเมื่อเลื่อนถึงท้าย) ---------- */
 let historyItems = [];
 let historyAll = [];
 function historyRow(r, i, enterIdx) {
   return `
     <li data-i="${i}" role="button" tabindex="0"${enterIdx != null ? ` class="enter" style="--i:${enterIdx}"` : ''}>
-      <div class="h-main">${fmtDate(r.d)}<span class="badge ${typeClass(r.type)}">${esc(r.type)}</span>${r.pending ? '<span class="badge pending">รอส่ง</span>' : ''}</div>
-      <div class="h-rate">${r.rate != null ? fmt(r.rate) : '–'}<small>${r.rate != null ? 'กม./ลิตร' : 'รอเติมครั้งถัดไป'}</small></div>
-      <div class="h-sub">${fmtInt(r.mileage)} กม. · ${fmt(r.liters)} ล. · ฿${fmt(r.oilPrice)}/ล.</div>
+      <div class="h-main">${fmtDate(r.d)}<span class="badge ${typeClass(r.type)}">${esc(r.type)}</span>${r.pending ? `<span class="badge pending">${esc(t('pending'))}</span>` : ''}</div>
+      <div class="h-rate">${r.rate != null ? fmt(r.rate) : '–'}<small>${esc(r.rate != null ? t('unit.kml') : t('history.waitNext'))}</small></div>
+      <div class="h-sub">${fmtInt(r.mileage)} ${esc(t('unit.km'))} · ${fmt(r.liters)} ${esc(t('unit.l'))} · ฿${fmt(r.oilPrice)}/${esc(t('unit.l'))}</div>
       <div class="h-sub" style="text-align:right">฿${fmtInt(r.price)}</div>
     </li>`;
 }
@@ -319,12 +328,11 @@ function renderHistory(list, { reset = false } = {}) {
     historyItems = historyAll.slice(0, state.shown);
     const animate = state.animate && !reduceMotion;
     ul.innerHTML = historyItems.map((r, i) => historyRow(r, i, animate && i < 12 ? i : null)).join('')
-      || '<li><div class="h-sub">ยังไม่มีข้อมูล</div></li>';
+      || `<li><div class="h-sub">${esc(t('history.empty'))}</div></li>`;
   }
   $('#loadMore').hidden = historyAll.length <= historyItems.length;
 }
 
-// โหลดหน้าถัดไปเมื่อเลื่อนลงถึงท้ายรายการ
 let loadingMore = false;
 function loadMoreHistory() {
   if (loadingMore || historyItems.length >= historyAll.length) return;
@@ -339,286 +347,6 @@ function loadMoreHistory() {
     loadingMore = false;
   }, 350);
 }
-
-/* ---------- views ---------- */
-let openSheet = null;
-
-function open(id) {
-  if (openSheet) return;
-  const sheet = $(`#${id}`);
-  if (id === 'form') {
-    initForm();
-    const r = $('#addBtn').getBoundingClientRect();
-    sheet.style.setProperty('--x', `${r.left + r.width / 2}px`);
-    sheet.style.setProperty('--y', `${r.top + r.height / 2}px`);
-    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    sheet.style.setProperty('--rmax', `${Math.ceil(Math.hypot(Math.max(cx, innerWidth - cx), Math.max(cy, innerHeight - cy)))}px`);
-    $('#addBtn').classList.add('open');
-  }
-  if (id === 'settings') initSettings();
-  sheet.scrollTop = 0;
-  sheet.classList.remove('closing');
-  sheet.hidden = false;
-  sheet.classList.add('opening');
-  if (sheet.classList.contains('sheet-push')) $('.shell').classList.add('pushed');
-  openSheet = sheet;
-}
-
-function closeSheets() {
-  const sheet = openSheet;
-  if (!sheet) return;
-  openSheet = null;
-  document.activeElement?.blur?.();
-  $('#addBtn').classList.remove('open');
-  const shell = $('.shell');
-  if (shell.classList.contains('pushed')) { shell.classList.remove('pushed'); shell.classList.add('unpushed'); }
-  sheet.classList.remove('opening');
-  sheet.classList.add('closing');
-  const done = () => {
-    sheet.hidden = true;
-    sheet.classList.remove('closing');
-    shell.classList.remove('unpushed');
-  };
-  if (reduceMotion) done(); else setTimeout(done, sheet.classList.contains('sheet-push') ? 320 : 380);
-}
-
-/* ---------- form ---------- */
-const form = $('#entryForm');
-let selectedType = null;
-
-function lastEntry() { const l = entries(); return l[l.length - 1]; }
-function lastPriceFor(type) {
-  const l = entries().filter((r) => r.type === type);
-  return l.length ? l[l.length - 1].oilPrice : null;
-}
-
-function initForm() {
-  form.reset();
-  const last = lastEntry();
-  form.date.value = isoToday();
-  selectedType = last ? last.type : OIL_TYPES[0];
-  $('#typeChips').innerHTML = OIL_TYPES.map((t) => `<button type="button" class="chip ${typeClass(t)}" data-type="${esc(t)}">${esc(t)}</button>`).join('');
-  setType(selectedType);
-  updateForm();
-  setTimeout(() => form.mileage.focus(), 250);
-}
-
-function setType(type) {
-  selectedType = type;
-  $$('.chip').forEach((c) => c.classList.toggle('active', c.dataset.type === type));
-  const p = lastPriceFor(type);
-  form.oilPrice.placeholder = p ? fmt(p) : '0.00';
-  if (p && !form.oilPrice.dataset.touched) form.oilPrice.value = p.toFixed(2);
-  updateForm();
-}
-
-function readForm() {
-  return {
-    date: form.date.value,
-    type: selectedType,
-    mileage: num(form.mileage.value),
-    oilPrice: num(form.oilPrice.value),
-    price: num(form.price.value),
-  };
-}
-
-function updateForm() {
-  const v = readForm();
-  const last = lastEntry();
-  const hint = $('#mileageHint');
-  hint.className = 'hint';
-  if (last) {
-    hint.textContent = `ครั้งก่อน ${fmtInt(last.mileage)} กม. (${fmtDate(last.d)})`;
-    if (Number.isFinite(v.mileage) && v.mileage <= last.mileage) {
-      hint.textContent = `เลขไมล์ต้องมากกว่าครั้งก่อน (${fmtInt(last.mileage)} กม.)`;
-      hint.className = 'hint bad';
-    }
-  } else {
-    hint.textContent = '';
-  }
-
-  const valid = v.date && v.type && Number.isFinite(v.mileage) && v.mileage >= 0 && (!last || v.mileage > last.mileage)
-    && v.oilPrice > 0 && v.price > 0;
-  $('#saveBtn').disabled = !valid;
-
-  const liters = v.price / v.oilPrice;
-  let html = '';
-  if (Number.isFinite(liters) && liters > 0) {
-    html += `<span class="muted">ปริมาณที่เติม</span><b>${fmt(liters)} ลิตร</b>`;
-    if (last && Number.isFinite(v.mileage) && v.mileage > last.mileage) {
-      const dist = v.mileage - last.mileage;
-      html += `<span class="muted">ระยะทางจากครั้งก่อน</span><b>${fmtInt(dist)} กม.</b>`;
-      html += `<span class="muted">อัตรากินน้ำมัน (รอบก่อน)</span><b>${fmt(dist / liters)} กม./ล.</b>`;
-    }
-  }
-  $('#preview').innerHTML = html;
-}
-
-form.addEventListener('input', (e) => {
-  if (e.target.name === 'oilPrice') e.target.dataset.touched = '1';
-  updateForm();
-});
-$('#typeChips').addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if (chip) setType(chip.dataset.type);
-});
-form.addEventListener('reset', () => { delete form.oilPrice.dataset.touched; });
-
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const v = readForm();
-  const entry = { date: v.date, type: v.type, mileage: v.mileage, oilPrice: v.oilPrice, price: v.price, liters: null };
-  closeSheets();
-  if (!state.setup) {
-    state.rows = [...state.rows, entry];
-    store.set(KEYS.demo, state.rows);
-    render();
-    toast('บันทึกในโหมดตัวอย่าง (ยังไม่ได้ส่งขึ้น Sheet)');
-    return;
-  }
-  state.pending.push(entry);
-  store.set(KEYS.pending, state.pending);
-  render();
-  toast('กำลังบันทึกลง Sheet…');
-  await sync({ quiet: true });
-  if (!state.pending.length) toast('บันทึกลง Sheet แล้ว ✓');
-});
-
-/* ---------- detail / delete ---------- */
-let detailItem = null;
-
-function openDetail(item) {
-  detailItem = item;
-  const rows = [
-    ['วันที่', fmtDate(item.d)],
-    ['ชนิดน้ำมัน', `<span class="badge ${typeClass(item.type)}" style="margin:0">${esc(item.type)}</span>`],
-    ['เลขไมล์', `${fmtInt(item.mileage)} กม.`],
-    ['ราคาต่อลิตร', `฿${fmt(item.oilPrice)}`],
-    ['ยอดเงิน', `฿${fmt(item.price)}`],
-    ['ปริมาณ', `${fmt(item.liters)} ลิตร`],
-    ['อัตรากินน้ำมัน', item.rate != null ? `${fmt(item.rate)} กม./ลิตร` : 'รอเติมครั้งถัดไป'],
-  ];
-  if (item.pending) rows.push(['สถานะ', '<span class="badge pending" style="margin:0">รอส่งขึ้น Sheet</span>']);
-  $('#detailBody').innerHTML = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${v}</span></div>`).join('');
-  $('#deleteBtn').disabled = false;
-  open('detail');
-}
-
-$('#history').addEventListener('click', (e) => {
-  const li = e.target.closest('li[data-i]');
-  if (li) openDetail(historyItems[+li.dataset.i]);
-});
-
-$('#deleteBtn').addEventListener('click', async () => {
-  const item = detailItem;
-  if (!item) return;
-  if (!confirm(`ลบรายการ ${fmtDate(item.d)} · ${fmtInt(item.mileage)} กม. · ฿${fmtInt(item.price)} ?`)) return;
-
-  // ยังไม่ได้เชื่อม Sheet (โหมดตัวอย่าง) หรือยังรอส่ง → ลบในเครื่องอย่างเดียว
-  if (!state.setup || item.pending) {
-    if (item.pending) { state.pending.splice(item.src, 1); store.set(KEYS.pending, state.pending); }
-    else { state.rows.splice(item.src, 1); store.set(KEYS.demo, state.rows); }
-    closeSheets(); render(); toast('ลบแล้ว');
-    return;
-  }
-  if (!item.row) {
-    toast('ต้องอัปเดต Apps Script เป็นเวอร์ชันใหม่ก่อนจึงจะลบได้', 4000);
-    return;
-  }
-  const btn = $('#deleteBtn');
-  btn.disabled = true;
-  btn.textContent = 'กำลังลบ…';
-  try {
-    const rows = await apiPost({ action: 'delete', row: item.row, mileage: item.mileage, price: item.price });
-    state.rows = rows;
-    store.set(KEYS.rows, rows);
-    closeSheets(); render(); toast('ลบออกจาก Sheet แล้ว ✓');
-  } catch (err) {
-    console.error(err);
-    toast(err.message === 'mismatch' || err.message === 'not found'
-      ? 'ข้อมูลใน Sheet เปลี่ยนไปแล้ว กำลังรีเฟรช ลองลบอีกครั้ง'
-      : 'ลบไม่สำเร็จ ลองใหม่อีกครั้ง', 3500);
-    if (err.message === 'mismatch' || err.message === 'not found') { closeSheets(); sync({ quiet: true }); }
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'ลบรายการนี้';
-  }
-});
-
-/* ---------- settings ---------- */
-function parseSetup(text) {
-  const s = text.trim();
-  let u;
-  try { u = new URL(s); } catch { return null; }
-  const k = u.searchParams.get('k');
-  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u.href) || !k) return null;
-  return { url: `${u.origin}${u.pathname}`, k };
-}
-
-function renderThemeControls() {
-  const theme = loadTheme();
-  $$('#themeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.themeMode === theme.mode));
-  $('#swatches').innerHTML = Object.entries(ACCENTS).map(([id, a]) => `
-    <button type="button" class="swatch${id === theme.accent ? ' active' : ''}" data-accent="${id}" aria-label="${a.name}"
-      style="--sw-l: ${a.light}; --sw-d: ${a.dark}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>`).join('');
-}
-
-$('#themeSeg').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-theme-mode]');
-  if (!b) return;
-  saveTheme({ ...loadTheme(), mode: b.dataset.themeMode });
-  renderThemeControls();
-  render();
-});
-$('#swatches').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-accent]');
-  if (!b) return;
-  saveTheme({ ...loadTheme(), accent: b.dataset.accent });
-  renderThemeControls();
-});
-
-function initSettings() {
-  renderThemeControls();
-  $('#setupInput').value = state.setup ? `${state.setup.url}?k=${state.setup.k}` : '';
-  $('#settingsStatus').textContent = state.setup ? 'เชื่อมต่อกับ Google Sheet อยู่' : 'ยังไม่ได้เชื่อมต่อ (ใช้ข้อมูลตัวอย่าง)';
-  $('#settingsStatus').className = 'hint';
-}
-
-$('#saveSetupBtn').addEventListener('click', async () => {
-  const setup = parseSetup($('#setupInput').value);
-  const status = $('#settingsStatus');
-  if (!setup) {
-    status.textContent = 'รูปแบบไม่ถูกต้อง ต้องเป็นลิงก์ script.google.com ที่ลงท้ายด้วย ?k=TOKEN';
-    status.className = 'hint bad';
-    return;
-  }
-  status.textContent = 'กำลังทดสอบการเชื่อมต่อ…';
-  status.className = 'hint';
-  const prev = state.setup;
-  state.setup = setup;
-  try {
-    const rows = await apiGet();
-    state.rows = rows;
-    store.set(KEYS.setup, setup);
-    store.set(KEYS.rows, rows);
-    closeSheets();
-    render();
-    toast(`เชื่อมต่อสำเร็จ พบ ${rows.length} รายการ`);
-  } catch (err) {
-    state.setup = prev;
-    status.textContent = err.message === 'unauthorized' ? 'Token ไม่ถูกต้อง' : `เชื่อมต่อไม่สำเร็จ: ${err.message}`;
-    status.className = 'hint bad';
-  }
-});
-
-$('#clearSetupBtn').addEventListener('click', () => {
-  if (!confirm('ล้างการเชื่อมต่อ? ข้อมูลใน Sheet จะไม่ถูกลบ')) return;
-  store.del(KEYS.setup); store.del(KEYS.rows); store.del(KEYS.pending);
-  state.setup = null; state.pending = [];
-  state.rows = store.get(KEYS.demo, DEMO_ROWS);
-  closeSheets();
-  render();
-});
 
 /* ---------- สรุปรายเดือน ---------- */
 const monthKey = (d) => d.getFullYear() * 12 + d.getMonth();
@@ -660,9 +388,9 @@ function renderMonthly(list) {
   const avg = yearTotal / (now.getMonth() + 1);
 
   $('#mMax').textContent = max ? fmtInt(max.total) : '–';
-  $('#mMaxLabel').textContent = max ? `บาท · ${fmtMonth(max.d)}` : 'บาท';
+  $('#mMaxLabel').textContent = max ? `${t('unit.baht')} · ${fmtMonth(max.d)}` : t('unit.baht');
   $('#mNow').textContent = fmtInt(cur ? cur.total : 0);
-  $('#mNowLabel').textContent = `บาท · ${fmtMonth(now)}`;
+  $('#mNowLabel').textContent = `${t('unit.baht')} · ${fmtMonth(now)}`;
   $('#mAvg').textContent = yearTotal ? fmtInt(avg) : '–';
   $$('#mRangeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.range === state.mRange));
 
@@ -676,20 +404,20 @@ function renderMonthly(list) {
   const anim = state.animate && !reduceMotion;
   $('#mList').innerHTML = withData.map((m, i) => `
     <li${anim && i < 12 ? ` class="enter" style="--i:${i}"` : ''}>
-      <div class="h-main">${TH_MONTHS[m.d.getMonth()]} ${m.d.getFullYear() + 543}${m.k === nowK ? '<span class="badge">เดือนนี้</span>' : ''}${max && m.k === max.k ? '<span class="badge t-prem">สูงสุด</span>' : ''}</div>
+      <div class="h-main">${fmtMonthLong(m.d)}${m.k === nowK ? `<span class="badge">${esc(t('m.thisMonth'))}</span>` : ''}${max && m.k === max.k ? `<span class="badge t-prem">${esc(t('m.highest'))}</span>` : ''}</div>
       <div class="h-rate">฿${fmtInt(m.total)}</div>
-      <div class="h-sub">เติม ${m.count} ครั้ง · ${fmt(m.liters)} ลิตร</div>
-      <div class="h-sub" style="text-align:right">${m.liters ? `฿${fmt(m.total / m.liters)}/ล.` : ''}</div>
+      <div class="h-sub">${esc(t('m.fills', { n: m.count }))} · ${fmt(m.liters)} ${esc(t('unit.liters'))}</div>
+      <div class="h-sub" style="text-align:right">${m.liters ? `฿${fmt(m.total / m.liters)}/${esc(t('unit.l'))}` : ''}</div>
       <div class="bar-mini"><i style="width:${(m.total / top) * 100}%"></i></div>
-    </li>`).join('') || '<li><div class="h-sub">ยังไม่มีข้อมูล</div></li>';
+    </li>`).join('') || `<li><div class="h-sub">${esc(t('chart.empty'))}</div></li>`;
 }
 
 function renderMonthlyChart(months, maxMonth) {
   const el = $('#mChart');
   const W = el.clientWidth || 320, H = el.clientHeight || 240;
   const pad = { l: 42, r: 6, t: 34, b: 26 };
-  if (!months.length) {
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text class="empty" x="${W / 2}" y="${H / 2}" text-anchor="middle">ยังไม่มีข้อมูล</text></svg>`;
+  if (!months.length || months.every((m) => !m.total)) {
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}"><text class="empty" x="${W / 2}" y="${H / 2}" text-anchor="middle">${esc(t('chart.empty'))}</text></svg>`;
     return;
   }
   const peak = Math.max(...months.map((m) => m.total), 1);
@@ -712,10 +440,10 @@ function renderMonthlyChart(months, maxMonth) {
     const h = Math.max(m.total ? 2 : 0, Y(0) - Y(m.total));
     const cls = ['bar', m.k === nowK && 'now', maxMonth && m.k === maxMonth.k && 'max', anim && 'grow'].filter(Boolean).join(' ');
     const label = (months.length - 1 - i) % every === 0
-      ? `<text class="axis-label" x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${TH_MONTHS[m.d.getMonth()]}${m.d.getMonth() === 0 || i === 0 ? String(m.d.getFullYear() + 543).slice(-2) : ''}</text>` : '';
+      ? `<text class="axis-label" x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${mon(m.d)}${m.d.getMonth() === 0 || i === 0 ? yearOf(m.d) : ''}</text>` : '';
     return `<rect class="${cls}" data-i="${i}" x="${x}" y="${Y(0) - h}" width="${bw}" height="${h}" rx="${Math.min(4, bw / 3)}" style="--i:${i}"/>${label}`;
   }).join('');
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟค่าน้ำมันรายเดือน">${grid}${bars}</svg><div class="tooltip" hidden></div>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('m.chart'))}">${grid}${bars}</svg><div class="tooltip" hidden></div>`;
 
   const svg = $('svg', el), tip = $('.tooltip', el);
   const pick = (clientX) => {
@@ -724,7 +452,7 @@ function renderMonthlyChart(months, maxMonth) {
     const i = Math.min(months.length - 1, Math.max(0, Math.floor((x - pad.l) / slot)));
     const m = months[i];
     $$('.bar', svg).forEach((b) => b.classList.toggle('sel', +b.dataset.i === i));
-    tip.innerHTML = `<b>฿${fmtInt(m.total)}</b><br>${TH_MONTHS[m.d.getMonth()]} ${m.d.getFullYear() + 543} · เติม ${m.count} ครั้ง`;
+    tip.innerHTML = `<b>฿${fmtInt(m.total)}</b><br>${fmtMonthLong(m.d)} · ${esc(t('m.fills', { n: m.count }))}`;
     tip.hidden = false;
     const px = ((pad.l + slot * (i + 0.5)) / W) * rect.width, half = tip.offsetWidth / 2;
     tip.style.left = `${Math.min(Math.max(px, half), rect.width - half)}px`;
@@ -734,7 +462,496 @@ function renderMonthlyChart(months, maxMonth) {
   svg.addEventListener('pointerleave', () => { tip.hidden = true; $$('.bar', svg).forEach((b) => b.classList.remove('sel')); });
 }
 
-/* ---------- แท็บ + ปัดซ้าย/ขวา ---------- */
+/* ---------- ผ่อนรถ ---------- */
+async function loadLoan() {
+  if (!state.setup) return;
+  try {
+    const data = await apiGet('loan');
+    if (!Array.isArray(data.rows) || !data.dueDay) throw new Error('needUpdate');
+    state.loan = data;
+    state.loanError = null;
+    store.set(KEYS.loan, data);
+  } catch (err) {
+    console.error(err);
+    // Apps Script รุ่นเก่าไม่รู้จัก action=loan จะส่งรายการเติมน้ำมันกลับมาแทน
+    state.loanError = err.message === 'needUpdate' || err.message === 'no loan sheet' ? 'needUpdate' : 'failed';
+  }
+  if (state.tab === 2) state.animate = true;
+  renderLoan();
+  state.animate = false;
+}
+
+function renderLoan() {
+  const body = $('#loanBody');
+  if (!state.setup) { body.innerHTML = `<p class="empty-state">${esc(t('loan.notConnected'))}</p>`; return; }
+  if (!state.loan) {
+    body.innerHTML = `<p class="empty-state">${esc(state.loanError === 'needUpdate' ? t('loan.needUpdate') : t('loan.loading'))}</p>`;
+    return;
+  }
+  const rows = state.loan.rows.map((r) => ({ ...r, d: new Date(+r.ym.slice(0, 4), +r.ym.slice(5, 7) - 1, 1) }));
+  const paid = rows.filter((r) => r.paid);
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  const paidAmt = paid.reduce((s, r) => s + r.amount, 0);
+  const pct = rows.length ? paid.length / rows.length : 0;
+  const next = rows.find((r) => !r.paid);
+  const dueDay = state.loan.dueDay || 25;
+  const nowK = monthKey(new Date());
+  const anim = state.animate && !reduceMotion;
+
+  let nextHtml = `<div class="next-due"><div><div class="v">${esc(t('loan.done'))}</div></div></div>`;
+  if (next) {
+    const due = new Date(next.d.getFullYear(), next.d.getMonth(), dueDay);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = Math.round((due - today) / 864e5);
+    nextHtml = `<div class="next-due">
+        <div><div class="k">${esc(t('loan.next'))}</div><div class="v">${fmtDate(due)} · ฿${fmtInt(next.amount)}</div></div>
+        <div class="in">${esc(days <= 0 ? t('loan.dueToday') : t('loan.dueIn', { n: days }))}</div>
+      </div>`;
+  }
+
+  const C = 2 * Math.PI * 54;
+  const years = new Map();
+  rows.forEach((r) => {
+    const y = r.d.getFullYear();
+    if (!years.has(y)) years.set(y, []);
+    years.get(y).push(r);
+  });
+  let ci = 0;
+  const grid = [...years].map(([y, list]) => `
+    <div class="loan-year">
+      <h3>${LANG === 'th' ? y + 543 : y}</h3>
+      <div class="loan-grid">${list.map((r) => `<div class="loan-cell${r.paid ? ' paid' : ''}${monthKey(r.d) === nowK ? ' now' : ''}${anim ? ' enter' : ''}" style="--i:${ci++}">${mon(r.d)}</div>`).join('')}</div>
+    </div>`).join('');
+
+  body.innerHTML = `
+    <section class="stats">
+      <div class="stat"><span class="stat-label">${esc(t('loan.paid'))}</span><span class="stat-value">${paid.length}/${rows.length}</span><span class="stat-unit">${esc(t('loan.installments'))}</span></div>
+      <div class="stat"><span class="stat-label">${esc(t('loan.paidAmount'))}</span><span class="stat-value">${fmtInt(paidAmt)}</span><span class="stat-unit">${esc(t('unit.baht'))}</span></div>
+      <div class="stat"><span class="stat-label">${esc(t('loan.remaining'))}</span><span class="stat-value">${fmtInt(total - paidAmt)}</span><span class="stat-unit">${esc(t('unit.baht'))}</span></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>${esc(t('loan.progress'))}</h2></div>
+      <div class="loan-hero">
+        <div class="ring">
+          <svg viewBox="0 0 120 120"><circle class="track-c" cx="60" cy="60" r="54" stroke-width="12" fill="none"/>
+            <circle class="bar-c" cx="60" cy="60" r="54" stroke-width="12" fill="none" stroke-dasharray="${C}" stroke-dashoffset="${anim ? C : C * (1 - pct)}" data-target="${C * (1 - pct)}"/></svg>
+          <div class="ring-label"><b>${Math.round(pct * 100)}%</b><small>${esc(t('loan.of', { n: rows.length }))}</small></div>
+        </div>
+        <div class="loan-facts">
+          <div><div class="k">${esc(t('loan.paidAmount'))}</div><div class="v">฿${fmtInt(paidAmt)}</div></div>
+          <div><div class="k">${esc(t('loan.remaining'))}</div><div class="v">฿${fmtInt(total - paidAmt)}</div></div>
+        </div>
+      </div>
+      ${nextHtml}
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>${esc(t('loan.schedule'))}</h2></div>
+      ${grid}
+      <p class="loan-note">${esc(t('loan.autoNote'))}</p>
+    </section>`;
+  if (anim) {
+    const bar = $('.bar-c', body);
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.strokeDashoffset = bar.dataset.target; }));
+  }
+}
+
+/* ---------- sheets (ฟอร์ม / รายละเอียด / ตั้งค่า) ---------- */
+let openSheet = null;
+
+function open(id) {
+  if (openSheet) return;
+  const sheet = $(`#${id}`);
+  if (id === 'form') initForm();
+  if (id === 'settings') initSettings();
+  sheet.scrollTop = 0;
+  sheet.classList.remove('closing');
+  sheet.hidden = false;
+  sheet.classList.add('opening');
+  if (sheet.classList.contains('sheet-push')) $('.shell').classList.add('pushed');
+  openSheet = sheet;
+}
+
+function closeSheets() {
+  const sheet = openSheet;
+  if (!sheet) return;
+  openSheet = null;
+  document.activeElement?.blur?.();
+  const shell = $('.shell');
+  if (shell.classList.contains('pushed')) { shell.classList.remove('pushed'); shell.classList.add('unpushed'); }
+  sheet.classList.remove('opening');
+  sheet.classList.add('closing');
+  const done = () => {
+    sheet.hidden = true;
+    sheet.classList.remove('closing');
+    shell.classList.remove('unpushed');
+  };
+  if (reduceMotion) done(); else setTimeout(done, 320);
+  // รถวิ่งกลับเข้ามาหลังปิดฟอร์ม
+  if (sheet.id === 'form') {
+    const stage = $('#carStage');
+    stage.classList.remove('driving');
+    stage.classList.add('returning');
+    setTimeout(() => stage.classList.remove('returning'), 900);
+  }
+}
+
+// แตะรถ → รถวิ่งออก แล้วฟอร์มเลื่อนขึ้นมา
+$('#carStage').addEventListener('click', async () => {
+  if (openSheet) return;
+  const stage = $('#carStage');
+  if (!reduceMotion) {
+    stage.classList.remove('intro', 'returning');
+    stage.classList.add('driving');
+    await wait(380);
+  }
+  open('form');
+});
+
+/* ---------- form ---------- */
+const form = $('#entryForm');
+let selectedType = null;
+
+function lastEntry() { const l = entries(); return l[l.length - 1]; }
+function lastPriceFor(type) {
+  const l = entries().filter((r) => r.type === type);
+  return l.length ? l[l.length - 1].oilPrice : null;
+}
+
+// ราคา PTT วันนี้ (แคชไว้ในเครื่อง 1 ชั่วโมง)
+let ptt = store.get(KEYS.ptt, null);
+async function loadPtt() {
+  if (!state.setup) return null;
+  if (ptt && Date.now() - ptt.at < 3600e3) return ptt;
+  try {
+    const data = await apiGet('price');
+    if (!data.prices) return null;
+    ptt = { ...data, at: Date.now() };
+    store.set(KEYS.ptt, ptt);
+    return ptt;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+const pttPrice = (type) => ptt && ptt.prices && ptt.prices[type];
+
+function initForm() {
+  form.reset();
+  const last = lastEntry();
+  form.date.value = isoToday();
+  selectedType = last ? last.type : OIL_TYPES[0];
+  $('#typeChips').innerHTML = OIL_TYPES.map((ty) => `<button type="button" class="chip ${typeClass(ty)}" data-type="${esc(ty)}">${esc(ty)}</button>`).join('');
+  setType(selectedType);
+  if (state.setup && !(ptt && Date.now() - ptt.at < 3600e3)) {
+    $('#priceHint').textContent = t('form.pttLoading');
+    loadPtt().then(() => { if (openSheet && openSheet.id === 'form') setType(selectedType); });
+  }
+  setTimeout(() => form.mileage.focus(), 450);
+}
+
+function setType(type) {
+  selectedType = type;
+  $$('.chip').forEach((c) => c.classList.toggle('active', c.dataset.type === type));
+  const pp = pttPrice(type);
+  const p = pp || lastPriceFor(type);
+  form.oilPrice.placeholder = p ? fmt(p) : '0.00';
+  if (p && !form.oilPrice.dataset.touched) form.oilPrice.value = p.toFixed(2);
+  $('#priceHint').textContent = pp ? t('form.pttPrice', { p: fmt(pp), date: fmtDate(parseDate(ptt.date)) }) : '';
+  updateForm();
+}
+
+function readForm() {
+  return {
+    date: form.date.value,
+    type: selectedType,
+    mileage: num(form.mileage.value),
+    oilPrice: num(form.oilPrice.value),
+    price: num(form.price.value),
+  };
+}
+
+function updateForm() {
+  const v = readForm();
+  const last = lastEntry();
+  const hint = $('#mileageHint');
+  hint.className = 'hint';
+  if (last) {
+    hint.textContent = t('form.prev', { km: fmtInt(last.mileage), date: fmtDate(last.d) });
+    if (Number.isFinite(v.mileage) && v.mileage <= last.mileage) {
+      hint.textContent = t('form.mustBeHigher', { km: fmtInt(last.mileage) });
+      hint.className = 'hint bad';
+    }
+  } else {
+    hint.textContent = '';
+  }
+
+  const valid = v.date && v.type && Number.isFinite(v.mileage) && v.mileage >= 0 && (!last || v.mileage > last.mileage)
+    && v.oilPrice > 0 && v.price > 0;
+  $('#saveBtn').disabled = !valid;
+
+  const liters = v.price / v.oilPrice;
+  let html = '';
+  if (Number.isFinite(liters) && liters > 0) {
+    html += `<span class="muted">${esc(t('form.liters'))}</span><b>${fmt(liters)} ${esc(t('unit.liters'))}</b>`;
+    if (last && Number.isFinite(v.mileage) && v.mileage > last.mileage) {
+      const dist = v.mileage - last.mileage;
+      html += `<span class="muted">${esc(t('form.distance'))}</span><b>${fmtInt(dist)} ${esc(t('unit.km'))}</b>`;
+      html += `<span class="muted">${esc(t('form.rate'))}</span><b>${fmt(dist / liters)} ${esc(t('unit.kml.short'))}</b>`;
+    }
+  }
+  $('#preview').innerHTML = html;
+}
+
+form.addEventListener('input', (e) => {
+  if (e.target.name === 'oilPrice') e.target.dataset.touched = '1';
+  updateForm();
+});
+$('#typeChips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (chip) setType(chip.dataset.type);
+});
+form.addEventListener('reset', () => { delete form.oilPrice.dataset.touched; });
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const v = readForm();
+  const entry = { date: v.date, type: v.type, mileage: v.mileage, oilPrice: v.oilPrice, price: v.price, liters: null };
+  closeSheets();
+  if (!state.setup) {
+    state.rows = [...state.rows, entry];
+    store.set(KEYS.demo, state.rows);
+    state.animate = true;
+    render();
+    toast(t('t.savedDemo'));
+    return;
+  }
+  state.pending.push(entry);
+  store.set(KEYS.pending, state.pending);
+  render();
+  toast(t('t.saving'));
+  await sync({ quiet: true });
+  if (!state.pending.length) toast(t('t.saved'));
+});
+
+/* ---------- detail / delete ---------- */
+let detailItem = null;
+
+function openDetail(item) {
+  detailItem = item;
+  const rows = [
+    [t('detail.date'), fmtDate(item.d)],
+    [t('detail.type'), `<span class="badge ${typeClass(item.type)}" style="margin:0">${esc(item.type)}</span>`],
+    [t('detail.mileage'), `${fmtInt(item.mileage)} ${esc(t('unit.km'))}`],
+    [t('detail.oilPrice'), `฿${fmt(item.oilPrice)}`],
+    [t('detail.price'), `฿${fmt(item.price)}`],
+    [t('detail.liters'), `${fmt(item.liters)} ${esc(t('unit.liters'))}`],
+    [t('detail.rate'), item.rate != null ? `${fmt(item.rate)} ${esc(t('unit.kml'))}` : esc(t('history.waitNext'))],
+  ];
+  if (item.pending) rows.push([t('detail.status'), `<span class="badge pending" style="margin:0">${esc(t('detail.pendingStatus'))}</span>`]);
+  $('#detailBody').innerHTML = rows.map(([k, v]) => `<div class="row"><span>${esc(k)}</span><span>${v}</span></div>`).join('');
+  $('#deleteBtn').disabled = false;
+  open('detail');
+}
+
+$('#history').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-i]');
+  if (li) openDetail(historyItems[+li.dataset.i]);
+});
+
+$('#deleteBtn').addEventListener('click', async () => {
+  const item = detailItem;
+  if (!item) return;
+  if (!confirm(t('detail.confirm', { date: fmtDate(item.d), km: fmtInt(item.mileage), price: fmtInt(item.price) }))) return;
+
+  // ยังไม่ได้เชื่อม Sheet (โหมดตัวอย่าง) หรือยังรอส่ง → ลบในเครื่องอย่างเดียว
+  if (!state.setup || item.pending) {
+    if (item.pending) { state.pending.splice(item.src, 1); store.set(KEYS.pending, state.pending); }
+    else { state.rows.splice(item.src, 1); store.set(KEYS.demo, state.rows); }
+    closeSheets(); render(); toast(t('t.deleted'));
+    return;
+  }
+  if (!item.row) {
+    toast(t('t.needUpdate'), 4000);
+    return;
+  }
+  const btn = $('#deleteBtn');
+  btn.disabled = true;
+  btn.textContent = t('detail.deleting');
+  try {
+    const rows = await apiPost({ action: 'delete', row: item.row, mileage: item.mileage, price: item.price });
+    state.rows = rows;
+    store.set(KEYS.rows, rows);
+    closeSheets(); render(); toast(t('t.deletedSheet'));
+  } catch (err) {
+    console.error(err);
+    const changed = err.message === 'mismatch' || err.message === 'not found';
+    toast(changed ? t('t.changed') : t('t.deleteFailed'), 3500);
+    if (changed) { closeSheets(); sync({ quiet: true }); }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('detail.delete');
+  }
+});
+
+/* ---------- settings ---------- */
+function parseSetup(text) {
+  const s = text.trim();
+  let u;
+  try { u = new URL(s); } catch { return null; }
+  const k = u.searchParams.get('k');
+  if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u.href) || !k) return null;
+  return { url: `${u.origin}${u.pathname}`, k };
+}
+
+function renderThemeControls() {
+  const theme = loadTheme();
+  $$('#themeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.themeMode === theme.mode));
+  $('#swatches').innerHTML = Object.entries(ACCENTS).map(([id, a]) => `
+    <button type="button" class="swatch${id === theme.accent ? ' active' : ''}" data-accent="${id}" aria-label="${a.name}"
+      style="--sw-l: ${a.light}; --sw-d: ${a.dark}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>`).join('')
+    + `<button type="button" class="swatch custom${theme.accent === 'custom' ? ' active' : ''}" data-accent="custom" aria-label="${esc(t('s.custom'))}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>`;
+  $$('#langSeg button').forEach((b) => b.classList.toggle('active', b.dataset.lang === LANG));
+}
+
+// วงล้อเลือกสีเอง
+function updateHuePicker() {
+  const theme = loadTheme();
+  const h = theme.h ?? 270, s = theme.s ?? 75;
+  const ring = $('#hueRing');
+  ring.style.setProperty('--sat', `${s}%`);
+  const size = ring.clientWidth || 210;
+  const r = (size / 2) * 0.915; // กึ่งกลางความหนาของวงล้อ (ขอบใน 83%)
+  const rad = ((h - 90) * Math.PI) / 180;
+  const knob = $('#hueKnob');
+  knob.style.left = `${size / 2 + r * Math.cos(rad)}px`;
+  knob.style.top = `${size / 2 + r * Math.sin(rad)}px`;
+  knob.style.background = `hsl(${h} ${s}% 50%)`;
+  $('#huePreview').style.background = 'var(--accent)';
+  $('#satRange').value = s;
+}
+
+function setCustomHue(clientX, clientY) {
+  const rect = $('#hueRing').getBoundingClientRect();
+  const dx = clientX - (rect.left + rect.width / 2), dy = clientY - (rect.top + rect.height / 2);
+  const h = Math.round(((Math.atan2(dy, dx) * 180) / Math.PI + 90 + 360) % 360);
+  saveTheme({ ...loadTheme(), accent: 'custom', h });
+  updateHuePicker();
+  renderThemeControls();
+}
+
+$('#hueRing').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  const ring = e.currentTarget;
+  ring.setPointerCapture(e.pointerId);
+  setCustomHue(e.clientX, e.clientY);
+  const move = (ev) => setCustomHue(ev.clientX, ev.clientY);
+  const up = () => {
+    ring.removeEventListener('pointermove', move);
+    ring.removeEventListener('pointerup', up);
+    ring.removeEventListener('pointercancel', up);
+    render({ keepHistory: true });
+  };
+  ring.addEventListener('pointermove', move);
+  ring.addEventListener('pointerup', up);
+  ring.addEventListener('pointercancel', up);
+});
+$('#satRange').addEventListener('input', (e) => {
+  saveTheme({ ...loadTheme(), accent: 'custom', s: +e.target.value });
+  updateHuePicker();
+  renderThemeControls();
+});
+
+$('#themeSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-theme-mode]');
+  if (!b) return;
+  saveTheme({ ...loadTheme(), mode: b.dataset.themeMode });
+  renderThemeControls();
+  render({ keepHistory: true });
+});
+$('#swatches').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-accent]');
+  if (!b) return;
+  const id = b.dataset.accent;
+  saveTheme({ ...loadTheme(), accent: id });
+  $('#huePicker').hidden = id !== 'custom';
+  if (id === 'custom') updateHuePicker();
+  renderThemeControls();
+  render({ keepHistory: true });
+});
+$('#langSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-lang]');
+  if (!b || b.dataset.lang === LANG) return;
+  setLang(b.dataset.lang);
+  renderThemeControls();
+  renderConnection();
+  setTab(state.tab, false);
+  render();
+});
+
+function renderConnection(editing = false) {
+  const connected = !!state.setup;
+  $('#connCard').hidden = !connected || editing;
+  $('#setupEditor').hidden = connected && !editing;
+  $('#cancelEditBtn').hidden = !connected;
+  if (connected) {
+    $('#connTitle').textContent = t('s.connected');
+    const id = state.setup.url.split('/s/')[1]?.split('/')[0] || '';
+    $('#connUrl').textContent = `script.google.com/…/${id.slice(0, 6)}…${id.slice(-4)}/exec`;
+  }
+  $('#setupInput').value = editing && connected ? `${state.setup.url}?k=${state.setup.k}` : '';
+  $('#settingsStatus').textContent = connected ? '' : t('s.notConnected');
+  $('#settingsStatus').className = 'hint';
+}
+
+function initSettings() {
+  renderThemeControls();
+  $('#huePicker').hidden = loadTheme().accent !== 'custom';
+  renderConnection();
+  if (!$('#huePicker').hidden) requestAnimationFrame(updateHuePicker);
+}
+
+$('#editLinkBtn').addEventListener('click', () => { renderConnection(true); $('#setupInput').focus(); });
+$('#cancelEditBtn').addEventListener('click', () => renderConnection());
+
+$('#saveSetupBtn').addEventListener('click', async () => {
+  const setup = parseSetup($('#setupInput').value);
+  const status = $('#settingsStatus');
+  if (!setup) {
+    status.textContent = t('s.badFormat');
+    status.className = 'hint bad';
+    return;
+  }
+  status.textContent = t('s.testing');
+  status.className = 'hint';
+  const prev = state.setup;
+  state.setup = setup;
+  try {
+    const { rows } = await apiGet();
+    state.rows = rows;
+    store.set(KEYS.setup, setup);
+    store.set(KEYS.rows, rows);
+    closeSheets();
+    state.animate = true;
+    render();
+    loadLoan();
+    toast(t('t.connected', { n: rows.length }));
+  } catch (err) {
+    state.setup = prev;
+    status.textContent = err.message === 'unauthorized' ? t('s.badToken') : t('s.failed', { e: err.message });
+    status.className = 'hint bad';
+  }
+});
+
+$('#clearSetupBtn').addEventListener('click', () => {
+  if (!confirm(t('s.confirmDisconnect'))) return;
+  [KEYS.setup, KEYS.rows, KEYS.pending, KEYS.loan, KEYS.ptt].forEach((k) => store.del(k));
+  state.setup = null; state.pending = []; state.loan = null; ptt = null;
+  state.rows = store.get(KEYS.demo, DEMO_ROWS);
+  closeSheets();
+  render();
+});
+
+/* ---------- หน้า (ปัดซ้าย/ขวา) ---------- */
 const pages = $$('.page');
 
 function setTab(i, animate = true) {
@@ -746,39 +963,36 @@ function setTab(i, animate = true) {
   track.classList.toggle('dragging', !animate);
   track.style.transform = `translateX(${-i * 100}%)`;
   if (!animate) requestAnimationFrame(() => track.classList.remove('dragging'));
-  const btns = $$('#tabbar button');
-  btns.forEach((b, j) => b.classList.toggle('active', j === i));
-  const ind = $('#tabIndicator');
-  ind.style.width = `${btns[i].offsetWidth}px`;
-  ind.style.transform = `translateX(${btns[i].offsetLeft}px)`;
+  $$('#dots button').forEach((b, j) => b.classList.toggle('active', j === i));
   const title = $('#pageTitle');
-  title.textContent = pages[i].dataset.title;
+  title.textContent = t(pages[i].dataset.title);
   if (changed && animate) { title.classList.remove('swap'); void title.offsetWidth; title.classList.add('swap'); }
   if (changed && i === 1) { state.animate = true; renderMonthly(entries()); state.animate = false; }
+  if (changed && i === 2) { state.animate = true; renderLoan(); state.animate = false; }
 }
-$('#tabbar').addEventListener('click', (e) => {
+$('#dots').addEventListener('click', (e) => {
   const b = e.target.closest('[data-tab]');
   if (b) setTab(+b.dataset.tab);
 });
 
-/* ---------- gesture: ปัดเปลี่ยนแท็บ / ดึงลงเพื่อรีเฟรช ---------- */
+/* ---------- gesture: ปัดเปลี่ยนหน้า / ดึงลงเพื่อรีเฟรช ---------- */
 const PULL_TRIGGER = 70;
 let g = null;
 
 $('#viewport').addEventListener('touchstart', (e) => {
   if (openSheet || e.touches.length > 1) return;
-  const t = e.touches[0];
+  const tc = e.touches[0];
   const page = pages[state.tab];
   g = {
-    x: t.clientX, y: t.clientY, t: performance.now(), mode: null, dx: 0, pull: 0,
+    x: tc.clientX, y: tc.clientY, t: performance.now(), mode: null, dx: 0, pull: 0,
     atTop: page.scrollTop <= 0, inner: $('.page-inner', page), noSwipe: !!e.target.closest('.chart, .segmented'),
   };
 }, { passive: true });
 
 $('#viewport').addEventListener('touchmove', (e) => {
   if (!g) return;
-  const t = e.touches[0];
-  const dx = t.clientX - g.x, dy = t.clientY - g.y;
+  const tc = e.touches[0];
+  const dx = tc.clientX - g.x, dy = tc.clientY - g.y;
   if (!g.mode) {
     if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2 && !g.noSwipe) g.mode = 'swipe';
     else if (dy > 8 && g.atTop && dy > Math.abs(dx)) g.mode = 'pull';
@@ -796,12 +1010,12 @@ $('#viewport').addEventListener('touchmove', (e) => {
     e.preventDefault();
     g.pull = Math.min(130, dy * 0.5);
     g.inner.style.transform = `translateY(${g.pull}px)`;
-    const ptr = $('#ptr');
+    const ptrEl = $('#ptr');
     const p = Math.min(1, g.pull / PULL_TRIGGER);
-    ptr.style.opacity = p;
-    ptr.style.transform = `translateY(${g.pull * 0.6 - 20}px) scale(${0.6 + p * 0.4})`;
-    $('svg', ptr).style.transform = `rotate(${g.pull * 4}deg)`;
-    ptr.classList.toggle('ready', g.pull >= PULL_TRIGGER);
+    ptrEl.style.opacity = p;
+    ptrEl.style.transform = `translateY(${g.pull * 0.6 - 20}px) scale(${0.6 + p * 0.4})`;
+    $('svg', ptrEl).style.transform = `rotate(${g.pull * 4}deg)`;
+    ptrEl.classList.toggle('ready', g.pull >= PULL_TRIGGER);
   }
 }, { passive: false });
 
@@ -828,33 +1042,31 @@ $('#viewport').addEventListener('touchcancel', endGesture);
 
 function resetPull(inner) {
   inner.style.transform = '';
-  const ptr = $('#ptr');
-  ptr.classList.remove('loading', 'ready');
-  ptr.style.opacity = '';
-  ptr.style.transform = '';
-  $('svg', ptr).style.transform = '';
+  const ptrEl = $('#ptr');
+  ptrEl.classList.remove('loading', 'ready');
+  ptrEl.style.opacity = '';
+  ptrEl.style.transform = '';
+  $('svg', ptrEl).style.transform = '';
 }
 
 async function refreshFromPull(inner) {
-  const ptr = $('#ptr');
+  const ptrEl = $('#ptr');
   inner.style.transform = 'translateY(56px)';
-  ptr.style.transform = 'translateY(14px) scale(1)';
-  ptr.style.opacity = 1;
-  $('svg', ptr).style.transform = '';
-  ptr.classList.add('loading');
+  ptrEl.style.transform = 'translateY(14px) scale(1)';
+  ptrEl.style.opacity = 1;
+  $('svg', ptrEl).style.transform = '';
+  ptrEl.classList.add('loading');
   if (state.setup) await sync();
-  else { await new Promise((r) => setTimeout(r, 600)); toast('ยังไม่ได้เชื่อมต่อ Sheet'); }
+  else { await wait(600); toast(t('t.notConnected')); }
   resetPull(inner);
 }
 
 /* ---------- wiring ---------- */
-$('#addBtn').addEventListener('click', () => (openSheet ? closeSheets() : open('form')));
 $('#settingsBtn').addEventListener('click', () => open('settings'));
 $('#rangeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
   state.range = b.dataset.range;
-  store.set(KEYS.range, state.range);
   state.animate = true;
   render({ keepHistory: true });
 });
@@ -867,8 +1079,9 @@ $('#mRangeSeg').addEventListener('click', (e) => {
   renderMonthly(entries());
   state.animate = false;
 });
-new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMoreHistory(); },
+new IntersectionObserver((es) => { if (es.some((en) => en.isIntersecting)) loadMoreHistory(); },
   { root: $('#pageFuel'), rootMargin: '0px 0px 120px 0px' }).observe($('#loadMore'));
+
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-close]')) closeSheets();
   const opener = e.target.closest('[data-open]');
@@ -889,7 +1102,8 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(console.error);
 }
 
+applyStaticI18n();
 setTab(state.tab, false);
 render();
-$('#carCard').classList.add('intro');
+$('#carStage').classList.add('intro');
 if (state.setup) sync({ quiet: true });

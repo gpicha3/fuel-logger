@@ -43,7 +43,7 @@
   --t-g95: #ffa54d; --t-g91: #4fd38a; --t-e20: #63a6ff; --t-prem: #ff6b7c; --t-other: #a0a0a8;
   color-scheme: dark;
 }
-:root { --ease-out: cubic-bezier(.22, 1, .36, 1); --ease-spring: cubic-bezier(.34, 1.56, .64, 1); --tabbar-h: 58px; }
+:root { --ease-out: cubic-bezier(.22, 1, .36, 1); --ease-spring: cubic-bezier(.34, 1.56, .64, 1); }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; }
@@ -67,7 +67,14 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   padding: calc(env(safe-area-inset-top) + 10px) 16px 6px;
   max-width: 672px; width: 100%; margin: 0 auto;
 }
-.appbar h1 { flex: 1; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+.appbar-title { flex: 1; min-width: 0; }
+.appbar h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+.dots { display: flex; gap: 6px; margin-top: 4px; height: 6px; }
+.dots button {
+  width: 6px; height: 6px; padding: 0; border: 0; border-radius: 3px; background: var(--border);
+  transition: width .4s var(--ease-out), background-color .3s;
+}
+.dots button.active { width: 18px; background: var(--accent); }
 .appbar h1.swap { animation: title-in .35s var(--ease-out); }
 @keyframes title-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
@@ -80,7 +87,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 }
 .page-inner {
   max-width: 672px; margin: 0 auto;
-  padding: 4px 16px calc(var(--tabbar-h) + 110px + env(safe-area-inset-bottom));
+  padding: 4px 16px calc(40px + env(safe-area-inset-bottom));
   transition: transform .35s var(--ease-out);
 }
 .page-inner.pulling { transition: none; }
@@ -97,27 +104,6 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .ptr.ready svg { color: var(--accent); }
 .ptr.loading svg { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* tab bar */
-.tabbar {
-  position: relative; display: flex; justify-content: center; gap: 8px;
-  padding: 6px 16px calc(6px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
-  -webkit-backdrop-filter: saturate(1.6) blur(18px); backdrop-filter: saturate(1.6) blur(18px);
-  border-top: 1px solid var(--border); z-index: 6;
-}
-.tabbar button {
-  position: relative; z-index: 1; flex: 0 1 160px; border: 0; background: none;
-  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0;
-  font-size: 11px; font-weight: 600; color: var(--muted); transition: color .25s;
-}
-.tabbar button.active { color: var(--accent); }
-.tabbar button svg { width: 24px; height: 24px; transition: transform .35s var(--ease-spring); }
-.tabbar button.active svg { transform: translateY(-1px) scale(1.08); }
-.tab-indicator {
-  position: absolute; left: 0; top: 4px; height: 50px; border-radius: 14px; background: var(--accent-soft);
-  transition: transform .45s var(--ease-out), width .45s var(--ease-out);
-}
 
 .icon-btn {
   width: 40px; height: 40px; border-radius: 12px; border: 0; background: transparent;
@@ -138,27 +124,8 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   display: flex; flex-direction: column; border: 1px solid var(--border); min-width: 0;
 }
 .stat-label { font-size: 12px; color: var(--muted); }
-.stat-value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 2px; white-space: nowrap; }
+.stat-value { font-size: clamp(16px, 5.1vw, 24px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; margin-top: 2px; white-space: nowrap; }
 .stat-unit { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.car-card { position: relative; display: flex; flex-direction: column; align-items: center; margin: 4px 0 10px; }
-.car-card::before {
-  content: ""; position: absolute; left: 10%; right: 10%; top: 18%; bottom: 22%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
-  filter: blur(8px); z-index: -1;
-}
-.car { width: min(100%, 340px); height: auto; display: block; overflow: visible; stroke: none; stroke-width: 1; }
-.car-shadow { fill: #000; opacity: .14; }
-.car .car-body { animation: car-in .9s var(--ease-out) both, car-idle 3.2s ease-in-out 1s infinite; transform-origin: 50% 100%; }
-.car .wheel use { transform-box: fill-box; transform-origin: center; }
-.car-card.moving .wheel use { animation: wheel-spin .5s linear infinite; }
-.car-card.intro .wheel use { animation: wheel-spin .45s linear 2; }
-@keyframes car-in { from { transform: translateX(-120%); } to { transform: none; } }
-@keyframes car-idle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.2px); } }
-@keyframes wheel-spin { to { transform: rotate(360deg); } }
-.car-info { display: flex; align-items: baseline; gap: 10px; margin-top: -2px; }
-.car-name { font-weight: 700; font-size: 15px; }
-.car-odo { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .card {
   background: var(--surface); border-radius: var(--radius); padding: 14px;
@@ -227,32 +194,12 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .load-more { display: grid; place-items: center; padding: 14px; }
 .spinner { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid var(--surface-2); border-top-color: var(--accent); animation: spin .7s linear infinite; }
 
-.fab {
-  position: fixed; right: max(20px, calc(50% - 316px)); bottom: calc(var(--tabbar-h) + 22px + env(safe-area-inset-bottom));
-  width: 60px; height: 60px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent);
-  display: grid; place-items: center; box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 40%, transparent); z-index: 7;
-  transition: transform .3s var(--ease-spring), box-shadow .3s;
-}
-.fab svg { width: 28px; height: 28px; stroke-width: 2.5; transition: transform .4s var(--ease-spring); }
-.fab:active { transform: scale(.9); }
-.fab.open svg { transform: rotate(135deg); }
-
 /* ---------- sheets ---------- */
 .sheet {
   position: fixed; inset: 0; background: var(--bg); overflow-y: auto; z-index: 10;
   padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom));
 }
 .sheet > * { max-width: 640px; margin-left: auto; margin-right: auto; }
-/* ฟอร์ม: ขยายออกจากปุ่ม + */
-.sheet-reveal { clip-path: circle(var(--r, 0px) at var(--x, 90%) var(--y, 90%)); }
-.sheet-reveal.opening { animation: reveal .5s var(--ease-out) forwards; }
-.sheet-reveal.closing { animation: reveal .38s cubic-bezier(.5, 0, .75, 0) reverse forwards; }
-@keyframes reveal { from { clip-path: circle(28px at var(--x) var(--y)); } to { clip-path: circle(var(--rmax, 150vmax) at var(--x) var(--y)); } }
-.sheet-reveal.opening .form > * { animation: rise .45s var(--ease-out) both; }
-.sheet-reveal.opening .form > :nth-child(2) { animation-delay: .04s; }
-.sheet-reveal.opening .form > :nth-child(3) { animation-delay: .08s; }
-.sheet-reveal.opening .form > :nth-child(4) { animation-delay: .12s; }
-.sheet-reveal.opening .form > :nth-child(n+5) { animation-delay: .16s; }
 /* หน้าย่อย: เลื่อนเข้าจากขวา */
 .sheet-push.opening { animation: push-in .42s var(--ease-out) both; }
 .sheet-push.closing { animation: push-out .32s ease-in both; }
@@ -303,7 +250,7 @@ textarea { font-size: 14px; resize: vertical; font-family: ui-monospace, Menlo, 
 .btn.ghost { background: var(--surface-2); }
 
 .toast {
-  position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + 96px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%);
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px;
   z-index: 20; box-shadow: var(--shadow); max-width: calc(100% - 32px); animation: toast-in .35s var(--ease-spring);
 }
@@ -333,11 +280,9 @@ textarea { font-size: 14px; resize: vertical; font-family: ui-monospace, Menlo, 
 /* สีตามชนิดน้ำมัน */
 .t-g95 { --t: var(--t-g95); } .t-g91 { --t: var(--t-g91); } .t-e20 { --t: var(--t-e20); } .t-prem { --t: var(--t-prem); } .t-other { --t: var(--t-other); }
 .badge[class*="t-"] { color: var(--t); background: color-mix(in srgb, var(--t) 15%, var(--surface)); }
-.chip.active[class*="t-"] { background: var(--t); border-color: var(--t); color: #fff; }
+.chip.active[class*="t-"] { background: var(--t); border-color: var(--t); color: var(--on-accent); }
 .chart .dot[class*="t-"] { stroke: var(--t); }
 .chart .dot.active { fill: var(--accent); stroke: var(--accent); }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
-.legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--t); margin-right: 5px; vertical-align: 1px; }
 
 .history li { cursor: pointer; }
 .history li:active { background: var(--surface-2); }
@@ -352,3 +297,149 @@ textarea { font-size: 14px; resize: vertical; font-family: ui-monospace, Menlo, 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* ---------- รถ (แตะเพื่อเติมน้ำมัน) ---------- */
+.car-stage {
+  position: relative; display: flex; flex-direction: column; align-items: center; width: 100%;
+  margin: 2px 0 12px; padding: 6px 0 0; border: 0; background: none; color: inherit; font: inherit;
+  -webkit-user-select: none; user-select: none; overflow: visible;
+}
+.car-glow {
+  position: absolute; left: 12%; right: 12%; top: 14%; height: 62%; z-index: -1; pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 20%, transparent), transparent);
+  filter: blur(10px);
+}
+.car { position: relative; display: block; width: min(92%, 380px); aspect-ratio: 1727 / 827; }
+.car-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+.car-shadow {
+  position: absolute; left: 4%; right: 2%; bottom: -3%; height: 12%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0,0,0,.28), transparent); pointer-events: none;
+}
+/* ล้อ: วงกลมที่หมุน แล้วบีบแนวนอนให้เป็นวงรีตามมุมมองของรูป */
+.wheel {
+  position: absolute; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+  transform: translateX(-50%) scaleX(var(--k)); pointer-events: none;
+}
+.wheel img { width: 100%; height: 100%; display: block; }
+.wheel-front { left: 55.33%; top: 63.12%; height: 29.14%; --k: .593; }
+.wheel-rear { left: 91.46%; top: 60.46%; height: 24.67%; --k: .485; }
+.car-stage.moving .wheel img, .car-stage.driving .wheel img { animation: wheel-spin .55s linear infinite; }
+.car-stage.intro .wheel img { animation: wheel-spin .5s linear 2; }
+@keyframes wheel-spin { to { transform: rotate(-360deg); } }
+
+/* ไฟหน้า/ไฟท้าย: เปิดเองในโหมดมืด */
+.lamp, .beam { position: absolute; pointer-events: none; opacity: 0; transition: opacity .6s; mix-blend-mode: screen; }
+.lamp { border-radius: 50%; transform: translate(-50%, -50%); }
+.head-l { left: 3.8%; top: 52%; width: 9%; height: 22%; background: radial-gradient(closest-side, #fff 0, #cfe6ff 35%, rgba(140,190,255,.45) 60%, transparent); }
+.head-r { left: 40.5%; top: 53%; width: 24%; height: 24%; background: radial-gradient(closest-side, #fff 0, #d8ebff 30%, rgba(140,190,255,.4) 60%, transparent); }
+.tail { left: 98%; top: 37.4%; width: 7%; height: 15%; background: radial-gradient(closest-side, #ffd0d0 0, #ff4b4b 40%, rgba(255,40,40,.4) 65%, transparent); }
+.beam {
+  left: -18%; top: 58%; width: 70%; height: 44%;
+  background: radial-gradient(ellipse 60% 50% at 70% 30%, rgba(190,220,255,.32), transparent 70%);
+  filter: blur(4px);
+}
+.lamp.tail { mix-blend-mode: normal; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .lamp, :root:not([data-theme="light"]) .beam { opacity: 1; }
+  :root:not([data-theme="light"]) .head-l, :root:not([data-theme="light"]) .head-r { animation: lamp-on 1.2s ease-out .5s both; }
+}
+:root[data-theme="dark"] .lamp, :root[data-theme="dark"] .beam { opacity: 1; }
+:root[data-theme="dark"] .head-l, :root[data-theme="dark"] .head-r { animation: lamp-on 1.2s ease-out .5s both; }
+@keyframes lamp-on { 0% { opacity: 0; } 12% { opacity: 1; } 20% { opacity: .3; } 32%, 100% { opacity: 1; } }
+.lamp.tail { animation: tail-pulse 2.6s ease-in-out infinite; }
+@keyframes tail-pulse { 50% { filter: brightness(.75); } }
+
+.car-stage .car { animation: car-in .9s var(--ease-out) both; }
+.car-stage:active .car { transform: scale(.97); transition: transform .15s; }
+@keyframes car-in { from { transform: translateX(-120%); } }
+.car-stage.driving .car { animation: car-out .55s cubic-bezier(.55, 0, .8, .4) both; }
+@keyframes car-out { 0% { transform: none; } 18% { transform: translateX(3%) rotate(.6deg); } 100% { transform: translateX(-140%); } }
+.car-stage.returning .car { animation: car-in .8s var(--ease-out) both; }
+.car-stage.returning .wheel img { animation: wheel-spin .5s linear 2; }
+
+.car-cta {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 12px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 600;
+  animation: cta-breathe 2.8s ease-in-out 1.2s infinite;
+}
+.car-cta svg { width: 16px; height: 16px; }
+@keyframes cta-breathe { 50% { transform: scale(1.04); } }
+.car-odo { margin-top: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* legend แบบ minimal */
+.legend { display: flex; justify-content: flex-end; gap: 12px; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend span::before { content: ""; width: 10px; height: 2px; border-radius: 1px; background: var(--t); }
+
+/* ฟอร์ม: เลื่อนขึ้นจากด้านล่าง */
+.sheet-rise.opening { animation: rise-in .5s var(--ease-out) both; }
+.sheet-rise.closing { animation: rise-out .32s ease-in both; }
+@keyframes rise-in { from { transform: translateY(100%); border-radius: 28px 28px 0 0; } to { transform: none; } }
+@keyframes rise-out { to { transform: translateY(100%); } }
+.sheet-rise.opening .form > * { animation: rise .45s var(--ease-out) both; animation-delay: calc(.12s + var(--d, 0s)); }
+.sheet-rise.opening .form > :nth-child(2) { --d: .04s; }
+.sheet-rise.opening .form > :nth-child(3) { --d: .08s; }
+.sheet-rise.opening .form > :nth-child(4) { --d: .12s; }
+.sheet-rise.opening .form > :nth-child(n+5) { --d: .16s; }
+
+/* การเชื่อมต่อ */
+.conn-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.conn-status { display: flex; gap: 10px; align-items: flex-start; }
+.conn-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--good); margin-top: 6px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 20%, transparent); flex: none; }
+.conn-title { font-weight: 700; }
+.conn-url { font-size: 13px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; word-break: break-all; }
+#setupEditor { display: flex; flex-direction: column; gap: 12px; }
+
+/* วงล้อสี */
+.swatch.custom { background: conic-gradient(from 90deg, red, yellow, lime, cyan, blue, magenta, red); }
+.swatch.custom.active { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
+.wheel-picker { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0 4px; animation: rise .35s var(--ease-out); }
+.hue-ring { position: relative; width: 210px; height: 210px; touch-action: none; cursor: pointer; }
+.hue-ring::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, hsl(0 var(--sat) 50%), hsl(60 var(--sat) 50%), hsl(120 var(--sat) 50%), hsl(180 var(--sat) 50%), hsl(240 var(--sat) 50%), hsl(300 var(--sat) 50%), hsl(360 var(--sat) 50%));
+  -webkit-mask: radial-gradient(closest-side, transparent 83%, #000 84%); mask: radial-gradient(closest-side, transparent 83%, #000 84%);
+}
+
+.hue-knob {
+  position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%;
+  border: 3px solid #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); pointer-events: none; z-index: 2;
+}
+.hue-preview {
+  position: absolute; left: 50%; top: 50%; width: 92px; height: 92px; margin: -46px 0 0 -46px; border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); transition: background-color .15s;
+}
+.slider-field { width: 100%; }
+input[type="range"] { -webkit-appearance: auto; appearance: auto; padding: 0; min-height: 32px; border: 0; background: none; accent-color: var(--accent); }
+input[type="range"]:focus { outline: none; }
+
+/* ---------- ผ่อนรถ ---------- */
+.loan-hero { display: flex; align-items: center; gap: 18px; }
+.ring { position: relative; width: 132px; height: 132px; flex: none; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring .track-c { stroke: var(--surface-2); }
+.ring .bar-c { stroke: var(--good); stroke-linecap: round; transition: stroke-dashoffset 1.2s var(--ease-out); }
+.ring-label { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.ring-label b { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.ring-label small { font-size: 12px; color: var(--muted); }
+.loan-facts { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.loan-facts .k { font-size: 12px; color: var(--muted); }
+.loan-facts .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.next-due { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--accent-soft); }
+.next-due .k { font-size: 12px; color: var(--muted); }
+.next-due .v { font-weight: 700; }
+.next-due .in { color: var(--accent); font-weight: 700; font-size: 14px; white-space: nowrap; }
+.loan-year { margin-top: 12px; }
+.loan-year:first-of-type { margin-top: 0; }
+.loan-year h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.loan-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.loan-cell {
+  border-radius: 10px; padding: 7px 2px; text-align: center; font-size: 12px; font-weight: 600;
+  background: var(--surface-2); color: var(--muted); border: 1px solid transparent;
+}
+.loan-cell.paid { background: color-mix(in srgb, var(--good) 18%, var(--surface)); color: var(--good); }
+.loan-cell.now { border-color: var(--accent); color: var(--accent); }
+.loan-cell.enter { animation: pop .35s var(--ease-spring) both; animation-delay: calc(var(--i) * 12ms); }
+.loan-note { font-size: 12px; color: var(--muted); margin: 10px 2px 0; }
+.empty-state { text-align: center; color: var(--muted); padding: 40px 16px; }

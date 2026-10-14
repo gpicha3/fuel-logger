@@ -17,9 +17,19 @@ function loadTheme() {
   catch { return { mode: 'auto', accent: 'purple' }; }
 }
 
+// สีที่ผู้ใช้เลือกเองจากวงล้อ: ใช้ hue/saturation เดียวกัน แต่ปรับความสว่างตามโหมด
+function customAccent(h, sat) {
+  return { name: 'custom', light: `hsl(${h} ${sat}% 42%)`, dark: `hsl(${h} ${Math.min(sat, 90)}% 68%)` };
+}
+
+function accentOf(theme) {
+  if (theme.accent === 'custom') return customAccent(theme.h ?? 270, theme.s ?? 75);
+  return ACCENTS[theme.accent] || ACCENTS.purple;
+}
+
 function applyTheme(theme) {
   const root = document.documentElement;
-  const accent = ACCENTS[theme.accent] || ACCENTS.purple;
+  const accent = accentOf(theme);
   if (theme.mode === 'auto') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', theme.mode);
   root.style.setProperty('--accent-l', accent.light);
