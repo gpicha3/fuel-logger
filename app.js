@@ -202,9 +202,8 @@ function renderStats(list) {
   $('#statMonth').textContent = fmtInt(month);
 }
 
-function niceMax(v) {
-  const step = v > 20 ? 5 : v > 10 ? 2.5 : 1;
-  return Math.ceil(v / step) * step;
+function niceStep(v) {
+  return v > 40 ? 10 : v > 10 ? 5 : v > 5 ? 2 : 1;
 }
 
 function renderChart(list) {
@@ -223,14 +222,13 @@ function renderChart(list) {
 
   const xs = pts.map((p) => p.mileage), ys = pts.map((p) => p.rate);
   const xMin = Math.min(...xs), xMax = Math.max(...xs);
-  const yMin = 0, yMax = niceMax(Math.max(...ys) * 1.05);
+  const yStep = niceStep(Math.max(...ys));
+  const yMin = 0, yMax = Math.ceil((Math.max(...ys) * 1.03) / yStep) * yStep;
   const X = (v) => pad.l + ((v - xMin) / (xMax - xMin || 1)) * (W - pad.l - pad.r);
   const Y = (v) => pad.t + (1 - (v - yMin) / (yMax - yMin)) * (H - pad.t - pad.b);
 
-  const ticks = 4;
   let grid = '';
-  for (let i = 0; i <= ticks; i++) {
-    const v = yMin + ((yMax - yMin) * i) / ticks;
+  for (let v = yMin; v <= yMax; v += yStep) {
     grid += `<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}"/>`
       + `<text class="axis-label" x="${pad.l - 6}" y="${Y(v) + 4}" text-anchor="end">${+v.toFixed(1)}</text>`;
   }
