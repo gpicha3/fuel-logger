@@ -56,6 +56,9 @@ function parseDate(s) {
   if (m) return new Date(+m[1], m[2] - 1, +m[3]);
   m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s); // d/m/yyyy
   if (m) return new Date(+m[3], m[2] - 1, +m[1]);
+  // Date.toString() จาก Apps Script เช่น "Sat Sep 28 2024 14:00:00 GMT+0700 (…)"
+  m = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{1,2}) (\d{4})\b/.exec(s);
+  if (m) return new Date(+m[3], 'JanFebMarAprMayJunJulAugSepOctNovDec'.indexOf(m[1]) / 3, +m[2]);
   const d = new Date(s);
   return isNaN(d) ? null : d;
 }
