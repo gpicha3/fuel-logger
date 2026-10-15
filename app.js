@@ -4,7 +4,7 @@ const OIL_TYPES = ['G95', 'G91', 'E20', 'G95 Premium'];
 const TYPE_CLASS = { G95: 't-g95', G91: 't-g91', E20: 't-e20', 'G95 Premium': 't-prem' };
 const typeClass = (t) => TYPE_CLASS[t] || 't-other';
 const KEYS = {
-  setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', mRange: 'fl.mRange', tab: 'fl.tab',
+  setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', mRange: 'fl.mRange',
   demo: 'fl.demoRows', ptt: 'fl.ptt', loan: 'fl.loan',
 };
 const PAGE_SIZE = 20;
@@ -43,7 +43,6 @@ const state = {
   pending: store.get(KEYS.pending, []),
   range: '365', // ค่าเริ่มต้นของกราฟ = 1 ปี
   mRange: store.get(KEYS.mRange, '12'),
-  tab: store.get(KEYS.tab, 0),
   loan: store.get(KEYS.loan, null),
   loanError: null,
   shown: PAGE_SIZE,
@@ -169,8 +168,8 @@ async function sync({ quiet = false } = {}) {
 function render({ keepHistory = false } = {}) {
   const list = entries();
   renderBanner();
+  renderHome(list);
   renderStats(list);
-  renderCar(list);
   renderChart(list);
   if (!keepHistory) renderHistory(list, { reset: true });
   renderMonthly(list);
@@ -191,9 +190,29 @@ function renderBanner() {
   }
 }
 
-function renderCar(list) {
+// หน้าแรก: ตัวเลขใหญ่ + สถานะ + คำอธิบายในเมนู
+function renderHome(list) {
+  const yearPts = list.filter((r) => r.rate != null && r.d && r.d.getTime() >= Date.now() - 365 * 864e5);
+  const avg = average(list, yearPts.length >= 2 ? yearPts : list.filter((r) => r.rate != null));
+  $('#heroNum').textContent = avg ? fmt(avg, 1) : '–';
   const last = list[list.length - 1];
-  $('#carOdo').textContent = last ? t('car.odo', { n: fmtInt(last.mileage) }) : '';
+  if (last && last.d) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = Math.round((today - last.d) / 864e5);
+    const ago = days <= 0 ? t('ago.today') : t('ago.days', { n: days });
+    $('#heroStatus').innerHTML = `${esc(t('hero.lastFill', { ago }))}<small>${esc(t('car.odo', { n: fmtInt(last.mileage) }))}</small>`;
+  } else {
+    $('#heroStatus').textContent = '';
+  }
+  const withRate = list.filter((r) => r.rate != null);
+  const lastRate = withRate[withRate.length - 1];
+  $('#mEconomy').textContent = avg ? t('menu.economy', { avg: fmt(avg), last: lastRate ? fmt(lastRate.rate) : '–' }) : '';
+  $('#mHistory').textContent = last ? `${fmtDate(last.d)} · ${last.type} · ฿${fmtInt(last.price)}` : t('history.empty');
+  const months = monthlyData(list);
+  const now = new Date(), nowK = monthKey(now);
+  const cur = months.find((m) => m.k === nowK);
+  const yearTotal = months.filter((m) => m.d.getFullYear() === now.getFullYear() && m.k <= nowK).reduce((s2, m) => s2 + m.total, 0);
+  $('#mMonthly').textContent = t('menu.monthly', { now: fmtInt(cur ? cur.total : 0), avg: fmtInt(yearTotal / (now.getMonth() + 1)) });
 }
 
 function inRange(list) {
@@ -476,13 +495,14 @@ async function loadLoan() {
     // Apps Script รุ่นเก่าไม่รู้จัก action=loan จะส่งรายการเติมน้ำมันกลับมาแทน
     state.loanError = err.message === 'needUpdate' || err.message === 'no loan sheet' ? 'needUpdate' : 'failed';
   }
-  if (state.tab === 2) state.animate = true;
+  if (isOpen('loan')) state.animate = true;
   renderLoan();
   state.animate = false;
 }
 
 function renderLoan() {
   const body = $('#loanBody');
+  $('#mLoan').textContent = '';
   if (!state.setup) { body.innerHTML = `<p class="empty-state">${esc(t('loan.notConnected'))}</p>`; return; }
   if (!state.loan) {
     body.innerHTML = `<p class="empty-state">${esc(state.loanError === 'needUpdate' ? t('loan.needUpdate') : t('loan.loading'))}</p>`;
@@ -515,6 +535,9 @@ function renderLoan() {
       </div>`;
   }
 
+  $('#mLoan').textContent = next
+    ? t('menu.loan', { paid: paid.length, total: rows.length, date: fmtDate(new Date(next.d.getFullYear(), next.d.getMonth(), dueDay)) })
+    : t('loan.done');
   const C = 2 * Math.PI * 54;
   const years = new Map();
   all.forEach((r) => {
@@ -561,36 +584,67 @@ function renderLoan() {
   }
 }
 
-/* ---------- sheets (ฟอร์ม / รายละเอียด / ตั้งค่า) ---------- */
-let openSheet = null;
+/* ---------- หน้าซ้อน (stack): หน้าย่อย / ฟอร์ม / ตั้งค่า ---------- */
+const stack = [];
+const isOpen = (id) => stack.some((sh) => sh.id === id);
+const topSheet = () => stack[stack.length - 1] || null;
+
+// หน้าที่ต้อง render ใหม่ตอนเปิด (ให้กราฟได้ขนาดจริงและเล่น animation)
+const ON_OPEN = {
+  form: () => initForm(),
+  settings: () => initSettings(),
+  economy: () => { state.animate = true; renderChart(entries()); state.animate = false; },
+  historyPage: () => { state.animate = true; renderHistory(entries(), { reset: true }); state.animate = false; },
+  monthly: () => { state.animate = true; renderMonthly(entries()); state.animate = false; },
+  loan: () => { state.animate = true; renderLoan(); state.animate = false; },
+  prices: () => renderPrices(),
+};
 
 function open(id) {
-  if (openSheet) return;
   const sheet = $(`#${id}`);
-  if (id === 'form') initForm();
-  if (id === 'settings') initSettings();
+  if (!sheet || isOpen(id)) return;
+  const below = topSheet();
   sheet.scrollTop = 0;
-  sheet.classList.remove('closing');
+  sheet.classList.remove('closing', 'covered', 'uncovered');
   sheet.hidden = false;
+  sheet.style.zIndex = 10 + stack.length * 2;
+  ON_OPEN[id]?.();
   sheet.classList.add('opening');
-  if (sheet.classList.contains('sheet-push')) $('.shell').classList.add('pushed');
-  openSheet = sheet;
+  if (sheet.classList.contains('sheet-push')) {
+    const el = below || $('.shell');
+    el.classList.remove('unpushed', 'uncovered');
+    el.classList.add(below ? 'covered' : 'pushed');
+  }
+  if (sheet.classList.contains('sheet-bottom')) {
+    const bd = $('#backdrop');
+    bd.style.zIndex = 9 + stack.length * 2;
+    bd.classList.remove('closing');
+    bd.hidden = false;
+  }
+  stack.push(sheet);
 }
 
-function closeSheets() {
-  const sheet = openSheet;
+function closeTop() {
+  const sheet = stack.pop();
   if (!sheet) return;
-  openSheet = null;
   document.activeElement?.blur?.();
-  const shell = $('.shell');
-  if (shell.classList.contains('pushed')) { shell.classList.remove('pushed'); shell.classList.add('unpushed'); }
+  const below = topSheet();
+  if (sheet.classList.contains('sheet-push')) {
+    const el = below || $('.shell');
+    if (el.classList.contains('covered') || el.classList.contains('pushed')) {
+      el.classList.remove('covered', 'pushed');
+      el.classList.add(below ? 'uncovered' : 'unpushed');
+      setTimeout(() => el.classList.remove('uncovered', 'unpushed'), 330);
+    }
+  }
+  if (sheet.classList.contains('sheet-bottom')) {
+    const bd = $('#backdrop');
+    bd.classList.add('closing');
+    setTimeout(() => { bd.hidden = true; bd.classList.remove('closing'); }, 250);
+  }
   sheet.classList.remove('opening');
   sheet.classList.add('closing');
-  const done = () => {
-    sheet.hidden = true;
-    sheet.classList.remove('closing');
-    shell.classList.remove('unpushed');
-  };
+  const done = () => { sheet.hidden = true; sheet.classList.remove('closing'); sheet.style.transform = ''; };
   if (reduceMotion) done(); else setTimeout(done, 320);
   // รถวิ่งกลับเข้ามาหลังปิดฟอร์ม
   if (sheet.id === 'form') {
@@ -601,9 +655,23 @@ function closeSheets() {
   }
 }
 
+function closeSheets() { while (stack.length) closeTop(); }
+
+// ราคาน้ำมัน PTT วันนี้
+async function renderPrices() {
+  const list = $('#pricesList');
+  if (!state.setup) { $('#pricesDate').textContent = t('loan.notConnected'); list.innerHTML = ''; return; }
+  if (!ptt) { $('#pricesDate').textContent = t('form.pttLoading'); list.innerHTML = ''; }
+  await loadPtt();
+  if (!ptt || !ptt.prices) { $('#pricesDate').textContent = t('prices.unavailable'); return; }
+  $('#pricesDate').textContent = t('prices.effective', { date: fmtDate(parseDate(ptt.date)) });
+  list.innerHTML = OIL_TYPES.filter((ty) => ptt.prices[ty]).map((ty) => `
+    <div class="row"><span><span class="badge ${typeClass(ty)}" style="margin:0">${esc(ty)}</span></span><span>฿${fmt(ptt.prices[ty])}</span></div>`).join('');
+}
+
 // แตะรถ → รถวิ่งออก แล้วฟอร์มเลื่อนขึ้นมา
-$('#carStage').addEventListener('click', async () => {
-  if (openSheet) return;
+async function startFill() {
+  if (stack.length) return;
   const stage = $('#carStage');
   if (!reduceMotion) {
     stage.classList.remove('intro', 'returning');
@@ -611,6 +679,16 @@ $('#carStage').addEventListener('click', async () => {
     await wait(380);
   }
   open('form');
+}
+$('#carStage').addEventListener('click', startFill);
+$('#qAdd').addEventListener('click', startFill);
+$('#qPrice').addEventListener('click', () => open('prices'));
+$('#qSync').addEventListener('click', async () => {
+  if (!state.setup) { toast(t('t.notConnected')); return; }
+  const b = $('#qSync');
+  b.classList.add('busy');
+  await sync();
+  b.classList.remove('busy');
 });
 
 /* ---------- form ---------- */
@@ -650,7 +728,7 @@ function initForm() {
   setType(selectedType);
   if (state.setup && !(ptt && Date.now() - ptt.at < 3600e3)) {
     $('#priceHint').textContent = t('form.pttLoading');
-    loadPtt().then(() => { if (openSheet && openSheet.id === 'form') setType(selectedType); });
+    loadPtt().then(() => { if (topSheet()?.id === 'form') setType(selectedType); });
   }
   setTimeout(() => form.mileage.focus(), 450);
 }
@@ -722,7 +800,7 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   const v = readForm();
   const entry = { date: v.date, type: v.type, mileage: v.mileage, oilPrice: v.oilPrice, price: v.price, liters: null };
-  closeSheets();
+  closeTop();
   if (!state.setup) {
     state.rows = [...state.rows, entry];
     store.set(KEYS.demo, state.rows);
@@ -773,7 +851,7 @@ $('#deleteBtn').addEventListener('click', async () => {
   if (!state.setup || item.pending) {
     if (item.pending) { state.pending.splice(item.src, 1); store.set(KEYS.pending, state.pending); }
     else { state.rows.splice(item.src, 1); store.set(KEYS.demo, state.rows); }
-    closeSheets(); render(); toast(t('t.deleted'));
+    closeTop(); render(); toast(t('t.deleted'));
     return;
   }
   if (!item.row) {
@@ -787,12 +865,12 @@ $('#deleteBtn').addEventListener('click', async () => {
     const rows = await apiPost({ action: 'delete', row: item.row, mileage: item.mileage, price: item.price });
     state.rows = rows;
     store.set(KEYS.rows, rows);
-    closeSheets(); render(); toast(t('t.deletedSheet'));
+    closeTop(); render(); toast(t('t.deletedSheet'));
   } catch (err) {
     console.error(err);
     const changed = err.message === 'mismatch' || err.message === 'not found';
     toast(changed ? t('t.changed') : t('t.deleteFailed'), 3500);
-    if (changed) { closeSheets(); sync({ quiet: true }); }
+    if (changed) { closeTop(); sync({ quiet: true }); }
   } finally {
     btn.disabled = false;
     btn.textContent = t('detail.delete');
@@ -890,7 +968,6 @@ $('#langSeg').addEventListener('click', (e) => {
   setLang(b.dataset.lang);
   renderThemeControls();
   renderConnection();
-  setTab(state.tab, false);
   render();
 });
 
@@ -957,94 +1034,76 @@ $('#clearSetupBtn').addEventListener('click', () => {
   render();
 });
 
-/* ---------- หน้า (ปัดซ้าย/ขวา) ---------- */
-const pages = $$('.page');
-
-function setTab(i, animate = true) {
-  i = Math.max(0, Math.min(pages.length - 1, i));
-  const changed = i !== state.tab;
-  state.tab = i;
-  store.set(KEYS.tab, i);
-  const track = $('#track');
-  track.classList.toggle('dragging', !animate);
-  track.style.transform = `translateX(${-i * 100}%)`;
-  if (!animate) requestAnimationFrame(() => track.classList.remove('dragging'));
-  $$('#dots button').forEach((b, j) => b.classList.toggle('active', j === i));
-  const title = $('#pageTitle');
-  title.textContent = t(pages[i].dataset.title);
-  if (changed && animate) { title.classList.remove('swap'); void title.offsetWidth; title.classList.add('swap'); }
-  if (changed && i === 1) { state.animate = true; renderMonthly(entries()); state.animate = false; }
-  if (changed && i === 2) { state.animate = true; renderLoan(); state.animate = false; }
-}
-$('#dots').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-tab]');
-  if (b) setTab(+b.dataset.tab);
-});
-
-/* ---------- gesture: ปัดเปลี่ยนหน้า / ดึงลงเพื่อรีเฟรช ---------- */
+/* ---------- gesture: ดึงลงเพื่อรีเฟรช (หน้าแรก) / ปัดจากขอบซ้ายเพื่อย้อนกลับ ---------- */
 const PULL_TRIGGER = 70;
 let g = null;
 
-$('#viewport').addEventListener('touchstart', (e) => {
-  if (openSheet || e.touches.length > 1) return;
+$('#homeScroll').addEventListener('touchstart', (e) => {
+  if (stack.length || e.touches.length > 1) return;
   const tc = e.touches[0];
-  const page = pages[state.tab];
-  g = {
-    x: tc.clientX, y: tc.clientY, t: performance.now(), mode: null, dx: 0, pull: 0,
-    atTop: page.scrollTop <= 0, inner: $('.page-inner', page), noSwipe: !!e.target.closest('.chart, .segmented'),
-  };
+  g = { y: tc.clientY, x: tc.clientX, mode: null, pull: 0, atTop: $('#homeScroll').scrollTop <= 0, inner: $('#homeInner') };
 }, { passive: true });
 
-$('#viewport').addEventListener('touchmove', (e) => {
+$('#homeScroll').addEventListener('touchmove', (e) => {
   if (!g) return;
   const tc = e.touches[0];
   const dx = tc.clientX - g.x, dy = tc.clientY - g.y;
   if (!g.mode) {
-    if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2 && !g.noSwipe) g.mode = 'swipe';
-    else if (dy > 8 && g.atTop && dy > Math.abs(dx)) g.mode = 'pull';
+    if (dy > 8 && g.atTop && dy > Math.abs(dx)) { g.mode = 'pull'; g.inner.classList.add('pulling'); }
     else if (Math.abs(dy) > 8 || Math.abs(dx) > 10) g.mode = 'none';
-    if (g.mode === 'swipe') $('#track').classList.add('dragging');
-    if (g.mode === 'pull') g.inner.classList.add('pulling');
   }
-  if (g.mode === 'swipe') {
-    e.preventDefault();
-    const w = $('#viewport').clientWidth;
-    const edge = (state.tab === 0 && dx > 0) || (state.tab === pages.length - 1 && dx < 0);
-    g.dx = edge ? dx * 0.3 : dx;
-    $('#track').style.transform = `translateX(${-state.tab * w + g.dx}px)`;
-  } else if (g.mode === 'pull') {
-    e.preventDefault();
-    g.pull = Math.min(130, dy * 0.5);
-    g.inner.style.transform = `translateY(${g.pull}px)`;
-    const ptrEl = $('#ptr');
-    const p = Math.min(1, g.pull / PULL_TRIGGER);
-    ptrEl.style.opacity = p;
-    ptrEl.style.transform = `translateY(${g.pull * 0.6 - 20}px) scale(${0.6 + p * 0.4})`;
-    $('svg', ptrEl).style.transform = `rotate(${g.pull * 4}deg)`;
-    ptrEl.classList.toggle('ready', g.pull >= PULL_TRIGGER);
-  }
+  if (g.mode !== 'pull') return;
+  e.preventDefault();
+  g.pull = Math.min(130, dy * 0.5);
+  g.inner.style.transform = `translateY(${g.pull}px)`;
+  const ptrEl = $('#ptr');
+  const p = Math.min(1, g.pull / PULL_TRIGGER);
+  ptrEl.style.opacity = p;
+  ptrEl.style.transform = `translateY(${g.pull * 0.6 - 20}px) scale(${0.6 + p * 0.4})`;
+  $('svg', ptrEl).style.transform = `rotate(${g.pull * 4}deg)`;
+  ptrEl.classList.toggle('ready', g.pull >= PULL_TRIGGER);
 }, { passive: false });
 
-const endGesture = () => {
+const endPull = () => {
   if (!g) return;
   const cur = g;
   g = null;
-  if (cur.mode === 'swipe') {
-    $('#track').classList.remove('dragging');
-    const w = $('#viewport').clientWidth;
-    const v = cur.dx / Math.max(1, performance.now() - cur.t);
-    let next = state.tab;
-    if (cur.dx < -w * 0.22 || v < -0.5) next++;
-    if (cur.dx > w * 0.22 || v > 0.5) next--;
-    setTab(next);
-  } else if (cur.mode === 'pull') {
-    cur.inner.classList.remove('pulling');
-    if (cur.pull >= PULL_TRIGGER) refreshFromPull(cur.inner);
-    else resetPull(cur.inner);
-  }
+  if (cur.mode !== 'pull') return;
+  cur.inner.classList.remove('pulling');
+  if (cur.pull >= PULL_TRIGGER) refreshFromPull(cur.inner);
+  else resetPull(cur.inner);
 };
-$('#viewport').addEventListener('touchend', endGesture);
-$('#viewport').addEventListener('touchcancel', endGesture);
+$('#homeScroll').addEventListener('touchend', endPull);
+$('#homeScroll').addEventListener('touchcancel', endPull);
+
+// ปัดจากขอบซ้ายเพื่อย้อนกลับ (เหมือนแอป iOS)
+let edge = null;
+document.addEventListener('touchstart', (e) => {
+  const sheet = topSheet();
+  const tc = e.touches[0];
+  if (!sheet || !sheet.classList.contains('sheet-push') || tc.clientX > 24) return;
+  edge = { sheet, x: tc.clientX, t: performance.now(), dx: 0 };
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  if (!edge) return;
+  edge.dx = Math.max(0, e.touches[0].clientX - edge.x);
+  edge.sheet.style.transition = 'none';
+  edge.sheet.style.transform = `translateX(${edge.dx}px)`;
+  e.preventDefault();
+}, { passive: false });
+document.addEventListener('touchend', () => {
+  if (!edge) return;
+  const { sheet, dx, t: t0 } = edge;
+  edge = null;
+  sheet.style.transition = 'transform .25s var(--ease-out)';
+  if (dx > innerWidth * 0.33 || dx / Math.max(1, performance.now() - t0) > 0.6) {
+    sheet.style.transform = 'translateX(100%)';
+    setTimeout(() => { sheet.style.transition = ''; closeTop(); }, 200);
+  } else {
+    sheet.style.transform = '';
+    setTimeout(() => { sheet.style.transition = ''; }, 260);
+  }
+});
 
 function resetPull(inner) {
   inner.style.transform = '';
@@ -1069,6 +1128,7 @@ async function refreshFromPull(inner) {
 
 /* ---------- wiring ---------- */
 $('#settingsBtn').addEventListener('click', () => open('settings'));
+$('#backdrop').addEventListener('click', () => closeTop());
 $('#rangeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
@@ -1086,10 +1146,10 @@ $('#mRangeSeg').addEventListener('click', (e) => {
   state.animate = false;
 });
 new IntersectionObserver((es) => { if (es.some((en) => en.isIntersecting)) loadMoreHistory(); },
-  { root: $('#pageFuel'), rootMargin: '0px 0px 120px 0px' }).observe($('#loadMore'));
+  { root: $('#historyPage'), rootMargin: '0px 0px 120px 0px' }).observe($('#loadMore'));
 
 document.addEventListener('click', (e) => {
-  if (e.target.closest('[data-close]')) closeSheets();
+  if (e.target.closest('[data-close]')) closeTop();
   const opener = e.target.closest('[data-open]');
   if (opener) open(opener.dataset.open);
   if (e.target.closest('#retryBtn')) sync();
@@ -1098,7 +1158,7 @@ window.addEventListener('online', () => state.pending.length && sync({ quiet: tr
 let resizeT;
 window.addEventListener('resize', () => {
   clearTimeout(resizeT);
-  resizeT = setTimeout(() => { render({ keepHistory: true }); setTab(state.tab, false); }, 150);
+  resizeT = setTimeout(() => render({ keepHistory: true }), 150);
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && state.setup) sync({ quiet: true });
@@ -1109,7 +1169,6 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 }
 
 applyStaticI18n();
-setTab(state.tab, false);
 render();
 $('#carStage').classList.add('intro');
 if (state.setup) sync({ quiet: true });

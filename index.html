@@ -21,110 +21,162 @@
 <body>
   <div class="status-scrim" aria-hidden="true"></div>
   <div class="shell">
-    <header class="appbar">
-      <div class="appbar-title">
-        <h1 id="pageTitle">Fuel Logger</h1>
-        <div class="dots" id="dots" role="tablist">
-          <button data-tab="0" data-i18n-aria="page.fuel"></button>
-          <button data-tab="1" data-i18n-aria="page.monthly"></button>
-          <button data-tab="2" data-i18n-aria="page.loan"></button>
-        </div>
-      </div>
-      <button class="icon-btn" id="settingsBtn" data-i18n-aria="settings">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      </button>
+    <header class="home-bar">
+      <button class="icon-btn" id="settingsBtn" data-i18n-aria="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <h1 class="car-title">Yaris ATIV</h1>
+      <span class="spacer"></span>
     </header>
 
     <div class="ptr" id="ptr" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg></div>
 
-    <div class="viewport" id="viewport">
-      <div class="track" id="track">
-        <!-- หน้า 1: เติมน้ำมัน -->
-        <main class="page" id="pageFuel" data-title="app.title">
-          <div class="page-inner">
-            <div id="banner" class="banner" hidden></div>
-
-            <section class="stats">
-              <div class="stat"><span class="stat-label" data-i18n="stat.avg"></span><span class="stat-value" id="statAvg">–</span><span class="stat-unit" data-i18n="unit.kml"></span></div>
-              <div class="stat"><span class="stat-label" data-i18n="stat.last"></span><span class="stat-value" id="statLast">–</span><span class="stat-unit" data-i18n="unit.kml"></span></div>
-              <div class="stat"><span class="stat-label" data-i18n="stat.month"></span><span class="stat-value" id="statMonth">–</span><span class="stat-unit" data-i18n="unit.baht"></span></div>
-            </section>
-
-            <button class="car-stage" id="carStage" type="button" data-i18n-aria="car.tap">
-              <span class="car-glow" aria-hidden="true"></span>
-              <span class="car" id="car">
-                <span class="car-shadow" aria-hidden="true"></span>
-                <span class="beam" aria-hidden="true"></span>
-                <img class="car-img" src="img/car.png" alt="" width="1211" height="747" draggable="false">
-                <span class="wheel wheel-front" aria-hidden="true"><img src="img/wheel-front.png" alt="" draggable="false"></span>
-                <span class="wheel wheel-rear" aria-hidden="true"><img src="img/wheel-rear.png" alt="" draggable="false"></span>
-                <span class="lamp head-l" aria-hidden="true"></span>
-                <span class="lamp head-r" aria-hidden="true"></span>
-                <span class="lamp tail" aria-hidden="true"></span>
-              </span>
-              <span class="car-cta">
-                <svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M4 11h11M15 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg>
-                <span data-i18n="car.tap"></span>
-              </span>
-              <span class="car-odo" id="carOdo"></span>
-            </button>
-
-            <section class="card">
-              <div class="card-head">
-                <h2 data-i18n="chart.rate"></h2>
-                <div class="segmented" id="rangeSeg" role="tablist">
-                  <button data-range="30" data-i18n="range.month"></button>
-                  <button data-range="365" data-i18n="range.year"></button>
-                  <button data-range="all" data-i18n="range.all"></button>
-                </div>
-              </div>
-              <div id="chart" class="chart"></div>
-              <div id="legend" class="legend"></div>
-            </section>
-
-            <section class="card">
-              <div class="card-head"><h2 data-i18n="history"></h2></div>
-              <ul id="history" class="history"></ul>
-              <div id="loadMore" class="load-more" hidden><span class="spinner"></span></div>
-            </section>
+    <main class="home-scroll" id="homeScroll">
+      <div class="page-inner" id="homeInner">
+        <section class="hero">
+          <div class="hero-value">
+            <span class="hero-icon"><svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M4 11h11M15 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg></span>
+            <span class="hero-num" id="heroNum">–</span>
+            <span class="hero-unit" data-i18n="unit.kml"></span>
           </div>
-        </main>
+          <div class="hero-status" id="heroStatus"></div>
+        </section>
 
-        <!-- หน้า 2: สรุปรายเดือน -->
-        <main class="page" id="pageMonthly" data-title="page.monthly">
-          <div class="page-inner">
-            <section class="stats">
-              <div class="stat"><span class="stat-label" data-i18n="m.max"></span><span class="stat-value" id="mMax">–</span><span class="stat-unit" id="mMaxLabel"></span></div>
-              <div class="stat"><span class="stat-label" data-i18n="m.now"></span><span class="stat-value" id="mNow">–</span><span class="stat-unit" id="mNowLabel"></span></div>
-              <div class="stat"><span class="stat-label" data-i18n="m.avg"></span><span class="stat-value" id="mAvg">–</span><span class="stat-unit" data-i18n="unit.perMonth"></span></div>
-            </section>
+        <button class="car-stage" id="carStage" type="button" data-i18n-aria="car.tap">
+          <span class="spotlight" aria-hidden="true"></span>
+          <span class="car" id="car">
+            <span class="car-shadow" aria-hidden="true"></span>
+            <span class="beam" aria-hidden="true"></span>
+            <img class="car-img" src="img/car.png" alt="" width="768" height="369" draggable="false">
+            <span class="wheel wheel-front" aria-hidden="true"><img src="img/wheel-front.png" alt="" draggable="false"></span>
+            <span class="wheel wheel-rear" aria-hidden="true"><img src="img/wheel-rear.png" alt="" draggable="false"></span>
+            <span class="lamp head-l" aria-hidden="true"></span>
+            <span class="lamp head-r" aria-hidden="true"></span>
+            <span class="lamp tail" aria-hidden="true"></span>
+          </span>
+        </button>
 
-            <section class="card">
-              <div class="card-head">
-                <h2 data-i18n="m.chart"></h2>
-                <div class="segmented" id="mRangeSeg" role="tablist">
-                  <button data-range="12" data-i18n="range.12m"></button>
-                  <button data-range="year" data-i18n="range.thisYear"></button>
-                  <button data-range="all" data-i18n="range.all"></button>
-                </div>
-              </div>
-              <div id="mChart" class="chart"></div>
-            </section>
+        <div class="quick">
+          <button class="quick-btn" id="qAdd" type="button"><span class="ring-btn"><svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M3 21h13M4 11h11M15 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3"/></svg></span><span data-i18n="q.add"></span></button>
+          <button class="quick-btn" id="qPrice" type="button"><span class="ring-btn"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span data-i18n="q.price"></span></button>
+          <button class="quick-btn" id="qSync" type="button"><span class="ring-btn"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v4.5h-4.5"/></svg></span><span data-i18n="q.sync"></span></button>
+        </div>
 
-            <section class="card">
-              <div class="card-head"><h2 data-i18n="m.list"></h2></div>
-              <ul id="mList" class="history"></ul>
-            </section>
-          </div>
-        </main>
+        <div id="banner" class="banner" hidden></div>
 
-        <!-- หน้า 3: ผ่อนรถ -->
-        <main class="page" id="pageLoan" data-title="page.loan">
-          <div class="page-inner" id="loanBody"></div>
-        </main>
+        <nav class="menu">
+          <button class="menu-row" data-open="economy">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18M7 15l4-4 3 3 5-6"/></svg>
+            <span class="menu-text"><b data-i18n="chart.rate"></b><small id="mEconomy"></small></span><svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button class="menu-row" data-open="historyPage">
+            <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2"/></svg>
+            <span class="menu-text"><b data-i18n="history"></b><small id="mHistory"></small></span><svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button class="menu-row" data-open="monthly">
+            <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg>
+            <span class="menu-text"><b data-i18n="m.chart"></b><small id="mMonthly"></small></span><svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button class="menu-row" data-open="loan">
+            <svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M6 15h4"/></svg>
+            <span class="menu-text"><b data-i18n="page.loan"></b><small id="mLoan"></small></span><svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button class="menu-row" data-open="settings">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span class="menu-text"><b data-i18n="settings"></b><small data-i18n="menu.settingsSub"></small></span><svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </nav>
       </div>
-    </div>
+    </main>
   </div>
+
+  <section id="economy" class="sheet sheet-push" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-close data-i18n-aria="back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h1 data-i18n="chart.rate"></h1>
+      <span class="spacer"></span>
+    </header>
+    <div class="page-body">
+      <section class="stats">
+        <div class="stat"><span class="stat-label" data-i18n="stat.avg"></span><span class="stat-value" id="statAvg">–</span><span class="stat-unit" data-i18n="unit.kml"></span></div>
+        <div class="stat"><span class="stat-label" data-i18n="stat.last"></span><span class="stat-value" id="statLast">–</span><span class="stat-unit" data-i18n="unit.kml"></span></div>
+        <div class="stat"><span class="stat-label" data-i18n="stat.month"></span><span class="stat-value" id="statMonth">–</span><span class="stat-unit" data-i18n="unit.baht"></span></div>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <h2 data-i18n="chart.rate"></h2>
+          <div class="segmented" id="rangeSeg" role="tablist">
+            <button data-range="30" data-i18n="range.month"></button>
+            <button data-range="365" data-i18n="range.year"></button>
+            <button data-range="all" data-i18n="range.all"></button>
+          </div>
+        </div>
+        <div id="chart" class="chart"></div>
+        <div id="legend" class="legend"></div>
+      </section>
+    </div>
+  </section>
+
+  <section id="historyPage" class="sheet sheet-push" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-close data-i18n-aria="back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h1 data-i18n="history"></h1>
+      <span class="spacer"></span>
+    </header>
+    <div class="page-body">
+      <section class="card">
+        <ul id="history" class="history"></ul>
+        <div id="loadMore" class="load-more" hidden><span class="spinner"></span></div>
+      </section>
+    </div>
+  </section>
+
+  <section id="monthly" class="sheet sheet-push" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-close data-i18n-aria="back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h1 data-i18n="page.monthly"></h1>
+      <span class="spacer"></span>
+    </header>
+    <div class="page-body">
+      <section class="stats">
+        <div class="stat"><span class="stat-label" data-i18n="m.max"></span><span class="stat-value" id="mMax">–</span><span class="stat-unit" id="mMaxLabel"></span></div>
+        <div class="stat"><span class="stat-label" data-i18n="m.now"></span><span class="stat-value" id="mNow">–</span><span class="stat-unit" id="mNowLabel"></span></div>
+        <div class="stat"><span class="stat-label" data-i18n="m.avg"></span><span class="stat-value" id="mAvg">–</span><span class="stat-unit" data-i18n="unit.perMonth"></span></div>
+      </section>
+      <section class="card">
+        <div class="card-head">
+          <h2 data-i18n="m.chart"></h2>
+          <div class="segmented" id="mRangeSeg" role="tablist">
+            <button data-range="12" data-i18n="range.12m"></button>
+            <button data-range="year" data-i18n="range.thisYear"></button>
+            <button data-range="all" data-i18n="range.all"></button>
+          </div>
+        </div>
+        <div id="mChart" class="chart"></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2 data-i18n="m.list"></h2></div>
+        <ul id="mList" class="history"></ul>
+      </section>
+    </div>
+  </section>
+
+  <section id="loan" class="sheet sheet-push" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-close data-i18n-aria="back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h1 data-i18n="page.loan"></h1>
+      <span class="spacer"></span>
+    </header>
+    <div class="page-body" id="loanBody"></div>
+  </section>
+
+  <!-- ราคาน้ำมัน PTT วันนี้ -->
+  <div class="backdrop" id="backdrop" hidden></div>
+  <section id="prices" class="sheet sheet-bottom" hidden>
+    <div class="grabber" aria-hidden="true"></div>
+    <h2 data-i18n="prices.title"></h2>
+    <p class="hint" id="pricesDate"></p>
+    <div id="pricesList" class="detail"></div>
+    <div class="form-actions"><button type="button" class="btn ghost" data-close data-i18n="close"></button></div>
+  </section>
 
   <!-- ฟอร์มเพิ่ม log -->
   <section id="form" class="sheet sheet-rise" hidden>

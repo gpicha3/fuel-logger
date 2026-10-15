@@ -44,7 +44,7 @@ function applyTheme(theme) {
     meta.name = 'theme-color';
     document.head.appendChild(meta);
   }
-  meta.content = dark ? '#121214' : '#f5f5f7';
+  meta.content = dark ? '#0b0b0c' : '#f5f5f7';
   // แถบสถานะ iOS: โหมดมืดให้พื้นหลังแอปต่อขึ้นไปใต้แถบ (ตัวอักษรขาว) / โหมดสว่างใช้แถบปกติ (ตัวอักษรดำ)
   // iOS อ่านค่านี้ตอนเปิดแอป จึงมีผลเมื่อเปิดแอปใหม่
   const sb = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
