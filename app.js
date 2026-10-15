@@ -1251,6 +1251,7 @@ function open(id) {
   sheet.classList.add('opening');
   if (sheet.classList.contains('sheet-push')) {
     const el = below || $('.shell');
+    el.style.transform = ''; el.style.opacity = ''; delete el.dataset.inline;
     el.classList.remove('unpushed', 'uncovered');
     el.classList.add(below ? 'covered' : 'pushed');
   }
@@ -1263,14 +1264,29 @@ function open(id) {
   stack.push(sheet);
 }
 
-function closeTop() {
+function closeTop({ instant = false } = {}) {
   const sheet = stack.pop();
   if (!sheet) return;
   document.activeElement?.blur?.();
   const below = topSheet();
+  if (instant) {
+    // ปิดหลังจากปัดย้อนกลับ: animation ทำไปแล้วด้วยนิ้ว
+    sheet.hidden = true;
+    sheet.classList.remove('opening', 'closing');
+    const el = below || $('.shell');
+    el.classList.remove('covered', 'pushed', 'uncovered', 'unpushed');
+    delete el.dataset.inline;
+    return;
+  }
   if (sheet.classList.contains('sheet-push')) {
     const el = below || $('.shell');
-    if (el.classList.contains('covered') || el.classList.contains('pushed')) {
+    if (el.dataset.inline) {
+      // หน้าด้านหลังถูกจัดตำแหน่งด้วย inline style (หลังปัดไม่สุด) → เลื่อนกลับด้วย transition
+      el.style.transition = 'transform .32s ease-in, opacity .32s ease-in';
+      el.style.transform = '';
+      el.style.opacity = '';
+      setTimeout(() => { el.style.transition = ''; delete el.dataset.inline; }, 340);
+    } else if (el.classList.contains('covered') || el.classList.contains('pushed')) {
       el.classList.remove('covered', 'pushed');
       el.classList.add(below ? 'uncovered' : 'unpushed');
       setTimeout(() => el.classList.remove('uncovered', 'unpushed'), 330);
@@ -1720,32 +1736,56 @@ const endPull = () => {
 $('#homeScroll').addEventListener('touchend', endPull);
 $('#homeScroll').addEventListener('touchcancel', endPull);
 
-// ปัดจากขอบซ้ายเพื่อย้อนกลับ (เหมือนแอป iOS)
+// ปัดจากขอบซ้ายเพื่อย้อนกลับ (เหมือนแอป iOS): หน้าบนเลื่อนตามนิ้ว หน้าด้านหลังค่อย ๆ เลื่อนกลับเข้ามา
 let edge = null;
+const BACK_SHIFT = 22; // หน้าด้านหลังถูกเลื่อนไปทางซ้าย 22% (ตรงกับ animation shell-back)
 document.addEventListener('touchstart', (e) => {
   const sheet = topSheet();
   const tc = e.touches[0];
   if (!sheet || !sheet.classList.contains('sheet-push') || tc.clientX > 24) return;
-  edge = { sheet, x: tc.clientX, t: performance.now(), dx: 0 };
+  edge = { sheet, below: stack[stack.length - 2] || $('.shell'), x: tc.clientX, t: performance.now(), dx: 0, started: false };
 }, { passive: true });
 document.addEventListener('touchmove', (e) => {
   if (!edge) return;
+  const { sheet, below } = edge;
+  if (!edge.started) {
+    // หยุด animation ที่ค้างอยู่ (fill: both) ไม่ให้ทับการเลื่อนด้วยนิ้ว
+    edge.started = true;
+    sheet.classList.remove('opening');
+    below.classList.remove('pushed', 'covered', 'unpushed', 'uncovered');
+    for (const el of [sheet, below]) el.style.transition = 'none';
+  }
   edge.dx = Math.max(0, e.touches[0].clientX - edge.x);
-  edge.sheet.style.transition = 'none';
-  edge.sheet.style.transform = `translateX(${edge.dx}px)`;
+  const p = Math.min(1, edge.dx / innerWidth);
+  sheet.style.transform = `translateX(${edge.dx}px)`;
+  sheet.style.boxShadow = '-12px 0 30px rgba(0,0,0,.25)';
+  below.style.transform = `translateX(${-BACK_SHIFT * (1 - p)}%)`;
+  below.style.opacity = String(0.6 + 0.4 * p);
   e.preventDefault();
 }, { passive: false });
 document.addEventListener('touchend', () => {
   if (!edge) return;
-  const { sheet, dx, t: t0 } = edge;
+  const { sheet, below, dx, t: t0, started } = edge;
   edge = null;
-  sheet.style.transition = 'transform .25s var(--ease-out)';
-  if (dx > innerWidth * 0.33 || dx / Math.max(1, performance.now() - t0) > 0.6) {
+  if (!started) return;
+  const ease = 'cubic-bezier(.22, 1, .36, 1)';
+  for (const el of [sheet, below]) el.style.transition = `transform .3s ${ease}, opacity .3s ${ease}`;
+  const commit = dx > innerWidth * 0.33 || dx / Math.max(1, performance.now() - t0) > 0.5;
+  if (commit) {
     sheet.style.transform = 'translateX(100%)';
-    setTimeout(() => { sheet.style.transition = ''; closeTop(); }, 200);
+    below.style.transform = 'translateX(0)';
+    below.style.opacity = '1';
+    setTimeout(() => {
+      closeTop({ instant: true });
+      for (const el of [sheet, below]) { el.style.transition = ''; el.style.transform = ''; el.style.opacity = ''; el.style.boxShadow = ''; }
+    }, 300);
   } else {
+    // ปัดไม่สุด: เด้งกลับ หน้าด้านหลังค้างไว้ที่ตำแหน่งถูกเลื่อน (เก็บเป็น inline style)
     sheet.style.transform = '';
-    setTimeout(() => { sheet.style.transition = ''; }, 260);
+    below.style.transform = `translateX(-${BACK_SHIFT}%)`;
+    below.style.opacity = '0.6';
+    below.dataset.inline = '1';
+    setTimeout(() => { sheet.style.transition = ''; sheet.style.boxShadow = ''; below.style.transition = ''; }, 320);
   }
 });
 
@@ -1807,6 +1847,15 @@ window.addEventListener('resize', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && state.setup) sync({ quiet: true });
 });
+
+// ปิดการซูม: บีบนิ้ว และแตะสองครั้ง
+['gesturestart', 'gesturechange', 'gestureend'].forEach((ev) => document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 300 && !e.target.closest('input, textarea')) e.preventDefault();
+  lastTouchEnd = now;
+}, { passive: false });
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(console.error);

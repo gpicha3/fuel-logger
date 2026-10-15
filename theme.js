@@ -9,6 +9,9 @@ const ACCENTS = {
   red: { name: 'แดง', light: '#c62f3a', dark: '#ff6b74' },
   pink: { name: 'ชมพู', light: '#c8246e', dark: '#ff6aa8' },
   graphite: { name: 'กราไฟต์', light: '#3d4451', dark: '#aab3c2' },
+  // ขาว/ดำ: ไอคอนบนพื้นสีนี้ใช้สีตรงข้าม (on) และตัวอักษร/เส้นที่ใช้สีหลักจะสลับเป็นสีที่อ่านออกบนพื้นหลัง (ink)
+  black: { name: 'ดำ', light: '#1c1c1e', dark: '#2c2c2e', onL: '#ffffff', onD: '#ffffff', inkL: '#1c1c1e', inkD: '#f2f2f5' },
+  white: { name: 'ขาว', light: '#ffffff', dark: '#f2f2f5', onL: '#1c1c1e', onD: '#111114', inkL: '#1c1c1e', inkD: '#f2f2f5' },
 };
 const THEME_KEY = 'fl.theme';
 
@@ -34,6 +37,9 @@ function applyTheme(theme) {
   else root.setAttribute('data-theme', theme.mode);
   root.style.setProperty('--accent-l', accent.light);
   root.style.setProperty('--accent-d', accent.dark);
+  for (const [prop, key] of [['--on-l', 'onL'], ['--on-d', 'onD'], ['--ink-l', 'inkL'], ['--ink-d', 'inkD']]) {
+    if (accent[key]) root.style.setProperty(prop, accent[key]); else root.style.removeProperty(prop);
+  }
 
   // สีแถบสถานะ/พื้นหลังของระบบให้ตรงกับธีม
   const dark = theme.mode === 'dark' || (theme.mode === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
