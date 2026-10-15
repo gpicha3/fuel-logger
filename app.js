@@ -5,7 +5,7 @@ const TYPE_CLASS = { G95: 't-g95', G91: 't-g91', E20: 't-e20', 'G95 Premium': 't
 const typeClass = (t) => TYPE_CLASS[t] || 't-other';
 const KEYS = {
   setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', mRange: 'fl.mRange',
-  demo: 'fl.demoRows', ptt: 'fl.ptt', loan: 'fl.loan', car: 'fl.car', hero: 'fl.hero',
+  demo: 'fl.demoRows', ptt: 'fl.ptt', loan: 'fl.loan', car: 'fl.car', hero: 'fl.hero', odo: 'fl.odo',
 };
 const PAGE_SIZE = 20;
 
@@ -230,7 +230,21 @@ function kmPerDay(list) {
   return days > 0 ? (a[a.length - 1].mileage - a[0].mileage) / days : null;
 }
 
-// ประมาณระยะที่ยังวิ่งได้ = ลิตรที่เติมล่าสุด × อัตราเฉลี่ย − ระยะที่น่าจะวิ่งไปแล้ว (ถือว่าเติมเต็มถัง)
+const DEFAULT_TANK = 40; // ลิตร (Yaris ATIV)
+const tankLiters = () => Number(state.car?.settings?.tankL) || DEFAULT_TANK;
+
+// เลขไมล์ที่ผู้ใช้อัปเดตเองล่าสุด (เก็บในเครื่อง + ชีต Car settings) เลือกอันที่ใหม่กว่า
+function odoReading() {
+  const local = store.get(KEYS.odo, null);
+  const st = state.car?.settings || {};
+  const sheet = st.odoKm ? { km: Number(st.odoKm), date: st.odoDate } : null;
+  const pick = [local, sheet].filter((x) => x && x.km > 0 && parseDate(x.date))
+    .sort((a, b) => parseDate(b.date) - parseDate(a.date))[0];
+  return pick ? { km: pick.km, d: parseDate(pick.date) } : null;
+}
+
+// เติมเต็มถังทุกครั้ง: ระยะที่วิ่งได้อีก = ความจุถัง × กม./ลิตร − ระยะที่วิ่งไปแล้วหลังเติม
+// ระยะที่วิ่งไปแล้ว = จากเลขไมล์ที่อัปเดตไว้ (ถ้ามีหลังเติมครั้งล่าสุด) + ค่าเฉลี่ยต่อวันสำหรับวันที่เหลือ
 function estimate(list) {
   const last = list[list.length - 1];
   const seg = segments(list, yearAgo());
@@ -240,12 +254,15 @@ function estimate(list) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const days = Math.max(0, Math.round((today - last.d) / DAY));
   const perDay = kmPerDay(list) || 0;
-  const driven = perDay * days;
-  const range = kml ? last.liters * kml : null;
+  const reading = odoReading();
+  const useReading = reading && reading.km >= last.mileage && reading.d >= last.d;
+  const sinceReading = useReading ? Math.max(0, Math.round((today - reading.d) / DAY)) : 0;
+  const odo = useReading ? reading.km + perDay * sinceReading : last.mileage + perDay * days;
+  const driven = odo - last.mileage;
+  const range = kml ? tankLiters() * kml : null;
   return {
-    kml, costKm, days, perDay, last,
+    kml, costKm, days, perDay, last, odo, reading: useReading ? reading : null, sinceReading,
     range, remaining: range != null ? Math.max(0, range - driven) : null,
-    odo: last.mileage + driven,
   };
 }
 
@@ -259,9 +276,12 @@ function renderHome(list) {
     e.remaining != null && e.remaining < 30
       // ประมาณแล้วน่าจะใช้น้ำมันถังล่าสุดหมดแล้ว
       ? { num: `~${fmtInt(e.range)}`, unit: t('unit.km'), status: t('hero.timeToFill'),
-        sub: `${t('hero.perTank')} · ${t('hero.lastFill', { ago })}` }
+        sub: `${t('hero.perTank', { l: tankLiters() })} · ${t('hero.lastFill', { ago })}` }
       : { num: e.remaining != null ? `~${fmtInt(e.remaining)}` : '–', unit: t('unit.km'),
-        status: t('hero.remaining'), sub: last ? `${t('hero.lastFill', { ago })} · ${t('hero.perDay', { n: fmtInt(e.perDay) })}` : '' },
+        status: t('hero.remaining'),
+        sub: !last ? '' : e.reading
+          ? `${t('hero.fromOdo', { ago: e.sinceReading <= 0 ? t('ago.today') : t('ago.days', { n: e.sinceReading }) })} · ${t('hero.lastFill', { ago })}`
+          : `${t('hero.lastFill', { ago })} · ${t('hero.perDay', { n: fmtInt(e.perDay) })}` },
     { num: avg ? fmt(avg, 1) : '–', unit: t('unit.kml'), status: t('hero.kml'), sub: last ? t('hero.lastFill', { ago }) : '' },
     { num: e.costKm ? fmt(e.costKm) : '–', unit: t('unit.bahtKm'), status: t('hero.costKm'), sub: t('hero.year') },
   ];
@@ -270,6 +290,12 @@ function renderHome(list) {
   $('#heroUnit').textContent = m.unit;
   $('#heroStatus').innerHTML = `${esc(m.status)}<small>${esc(m.sub)}</small>`;
   $$('#heroDots i').forEach((d, i) => d.classList.toggle('on', i === state.hero));
+  // ปุ่มเลขไมล์ด่วน
+  if (e.odo) {
+    const fresh = e.reading && e.sinceReading === 0;
+    $('#odoValue').textContent = `${fresh ? '' : '~'}${fmtInt(e.odo)} ${t('unit.km')}`;
+    $('#odoNote').textContent = e.reading ? t('odo.updated', { ago: e.sinceReading <= 0 ? t('ago.today') : t('ago.days', { n: e.sinceReading }) }) : t('odo.estimated');
+  }
   const withRate = list.filter((r) => r.rate != null);
   const lastRate = withRate[withRate.length - 1];
   $('#mEconomy').textContent = avg ? t('menu.economy', { avg: fmt(avg), last: lastRate ? fmt(lastRate.rate) : '–' }) : '';
@@ -915,6 +941,7 @@ const remForm = $('#remForm');
 function initRemForm() {
   const st = state.car?.settings || {};
   remForm.serviceInterval.value = st.serviceInterval || DEFAULT_INTERVAL;
+  remForm.tankL.value = st.tankL || DEFAULT_TANK;
   remForm.lastServiceKm.value = st.lastServiceKm || '';
   for (const [k] of RENEWALS) remForm[k].value = st[k] || '';
 }
@@ -924,6 +951,7 @@ remForm.addEventListener('submit', async (e) => {
   const lastKm = num(remForm.lastServiceKm.value);
   const settings = {
     serviceInterval: String(num(remForm.serviceInterval.value) || DEFAULT_INTERVAL),
+    tankL: String(num(remForm.tankL.value) || DEFAULT_TANK),
     lastServiceKm: Number.isFinite(lastKm) ? String(lastKm) : '',
   };
   for (const [k] of RENEWALS) settings[k] = remForm[k].value || '';
@@ -946,6 +974,49 @@ function renderAlerts(list) {
   $('#alerts').innerHTML = items.map((a) => `<button class="alert" data-open="${a.open}"><span>${a.icon}</span><span>${esc(a.text)}</span></button>`).join('');
 }
 
+
+/* ---------- อัปเดตเลขไมล์ด่วน ---------- */
+function initOdo() {
+  const list = entries();
+  const e = estimate(list);
+  const inp = $('#odoInput');
+  inp.value = '';
+  inp.placeholder = e.odo ? String(Math.round(e.odo)) : '';
+  $('#odoHint').textContent = e.last ? t('odo.hint', { km: fmtInt(e.last.mileage), date: fmtDate(e.last.d) }) : '';
+  $('#odoHint').className = 'hint';
+  $('#odoSave').disabled = true;
+  setTimeout(() => inp.focus(), 350);
+}
+$('#odoInput').addEventListener('input', () => {
+  const km = num($('#odoInput').value);
+  const last = entries().at(-1);
+  const ok = km > 0 && (!last || km >= last.mileage);
+  $('#odoSave').disabled = !ok;
+  if (km > 0 && last && km < last.mileage) {
+    $('#odoHint').textContent = t('odo.tooLow', { km: fmtInt(last.mileage) });
+    $('#odoHint').className = 'hint bad';
+  } else if (last) {
+    $('#odoHint').textContent = t('odo.hint', { km: fmtInt(last.mileage), date: fmtDate(last.d) });
+    $('#odoHint').className = 'hint';
+  }
+});
+$('#odoForm').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const km = num($('#odoInput').value);
+  if (!(km > 0)) return;
+  const reading = { km, date: isoToday() };
+  store.set(KEYS.odo, reading);
+  closeTop();
+  render({ keepHistory: true });
+  toast(t('odo.saved'));
+  // เก็บลงชีตด้วย (ถ้า Apps Script รองรับ) เพื่อให้ใช้ได้ทุกเครื่อง
+  if (state.setup && state.car) {
+    try { await carPost({ action: 'setSettings', settings: { odoKm: String(km), odoDate: reading.date } }); }
+    catch (err) { console.error(err); }
+  }
+});
+$('#odoBtn').addEventListener('click', () => open('odoSheet'));
+
 /* ---------- หน้าซ้อน (stack): หน้าย่อย / ฟอร์ม / ตั้งค่า ---------- */
 const stack = [];
 const isOpen = (id) => stack.some((sh) => sh.id === id);
@@ -964,6 +1035,7 @@ const ON_OPEN = {
   care: () => { state.animate = true; renderCare(entries()); state.animate = false; },
   expenseForm: () => initExpenseForm(),
   careSettings: () => initRemForm(),
+  odoSheet: () => initOdo(),
 };
 
 function open(id) {

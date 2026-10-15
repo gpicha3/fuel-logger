@@ -524,3 +524,17 @@ input[type="range"]:focus { outline: none; }
 .cat-row { display: grid; grid-template-columns: 1fr auto; padding: 6px 0 2px; font-size: 14px; }
 .cat-row .cmp-bar { grid-column: 1 / -1; margin: 4px 0 0; }
 .cat-row b { font-variant-numeric: tabular-nums; }
+
+/* ---------- ปุ่มเลขไมล์ด่วน ---------- */
+.odo-chip {
+  display: flex; align-items: center; gap: 10px; margin: 10px auto 0; padding: 8px 14px; border-radius: 999px;
+  border: 1px solid var(--ring); background: color-mix(in srgb, var(--surface) 40%, transparent); color: var(--text);
+  transition: transform .2s var(--ease-spring), border-color .2s;
+}
+.odo-chip:active { transform: scale(.96); border-color: var(--accent); }
+.odo-chip svg { width: 20px; height: 20px; stroke-width: 1.8; flex: none; }
+.odo-chip .pen { width: 16px; height: 16px; color: var(--muted); }
+.odo-chip span { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
+.odo-chip b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.odo-chip small { font-size: 11px; color: var(--muted); }
+#odoInput { font-size: 28px; font-weight: 600; text-align: center; letter-spacing: .02em; }
