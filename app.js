@@ -5,7 +5,7 @@ const TYPE_CLASS = { G95: 't-g95', G91: 't-g91', E20: 't-e20', 'G95 Premium': 't
 const typeClass = (t) => TYPE_CLASS[t] || 't-other';
 const KEYS = {
   setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', mRange: 'fl.mRange',
-  demo: 'fl.demoRows', ptt: 'fl.ptt', loan: 'fl.loan',
+  demo: 'fl.demoRows', ptt: 'fl.ptt', loan: 'fl.loan', car: 'fl.car', hero: 'fl.hero',
 };
 const PAGE_SIZE = 20;
 
@@ -44,6 +44,10 @@ const state = {
   range: '365', // ค่าเริ่มต้นของกราฟ = 1 ปี
   mRange: store.get(KEYS.mRange, '12'),
   loan: store.get(KEYS.loan, null),
+  car: store.get(KEYS.car, null), // { expenses, settings } จากชีต Expenses / Car settings
+  carError: null,
+  hero: store.get(KEYS.hero, 0),  // ตัวเลขใหญ่หน้าแรก: 0 ระยะที่เหลือ, 1 กม./ล., 2 ฿/กม.
+  year: null,
   loanError: null,
   shown: PAGE_SIZE,
   loading: false,
@@ -113,6 +117,10 @@ function entries() {
     const next = all[i + 1];
     r.rate = next && next.liters > 0 ? (next.mileage - r.mileage) / next.liters : null;
   });
+  // ทำเครื่องหมายรอบที่กินน้ำมันกว่าปกติเกิน 15% (เทียบค่าเฉลี่ยทั้งหมด)
+  const rated = all.filter((r) => r.rate != null);
+  const base = rated.length ? rated.reduce((acc, r) => acc + r.rate, 0) / rated.length : 0;
+  rated.forEach((r) => { r.low = rated.length >= 5 && r.rate < base * 0.85; });
   return all;
 }
 
@@ -152,6 +160,7 @@ async function sync({ quiet = false } = {}) {
     state.rows = (await apiGet()).rows;
     store.set(KEYS.rows, state.rows);
     loadLoan();
+    loadCar();
     if (!quiet) toast(t('t.synced'));
   } catch (err) {
     console.error(err);
@@ -174,6 +183,10 @@ function render({ keepHistory = false } = {}) {
   if (!keepHistory) renderHistory(list, { reset: true });
   renderMonthly(list);
   renderLoan();
+  renderCompare(list);
+  renderYear(list);
+  renderCare(list);
+  renderAlerts(list);
   state.animate = false;
 }
 
@@ -190,20 +203,73 @@ function renderBanner() {
   }
 }
 
-// หน้าแรก: ตัวเลขใหญ่ + สถานะ + คำอธิบายในเมนู
-function renderHome(list) {
-  const yearPts = list.filter((r) => r.rate != null && r.d && r.d.getTime() >= Date.now() - 365 * 864e5);
-  const avg = average(list, yearPts.length >= 2 ? yearPts : list.filter((r) => r.rate != null));
-  $('#heroNum').textContent = avg ? fmt(avg, 1) : '–';
-  const last = list[list.length - 1];
-  if (last && last.d) {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const days = Math.round((today - last.d) / 864e5);
-    const ago = days <= 0 ? t('ago.today') : t('ago.days', { n: days });
-    $('#heroStatus').innerHTML = `${esc(t('hero.lastFill', { ago }))}<small>${esc(t('car.odo', { n: fmtInt(last.mileage) }))}</small>`;
-  } else {
-    $('#heroStatus').textContent = '';
+/* ---------- ตัวชี้วัด ---------- */
+const DAY = 864e5;
+const yearAgo = () => Date.now() - 365 * DAY;
+
+// ช่วงระหว่างการเติมแต่ละครั้ง: ระยะทาง, ลิตรที่ใช้ (= ลิตรที่เติมครั้งถัดไป), ค่าน้ำมันของช่วงนั้น
+function segments(list, from = 0) {
+  const out = [];
+  for (let i = 0; i < list.length - 1; i++) {
+    const a = list[i], b = list[i + 1];
+    if (!a.d || a.d.getTime() < from || !(b.liters > 0)) continue;
+    const dist = b.mileage - a.mileage;
+    if (dist <= 0) continue;
+    out.push({ from: a, type: a.type, dist, liters: b.liters, cost: b.liters * a.oilPrice });
   }
+  return out;
+}
+const sumBy = (arr, f) => arr.reduce((acc, x) => acc + f(x), 0);
+
+// ระยะวิ่งเฉลี่ยต่อวัน (1 ปีล่าสุด)
+function kmPerDay(list) {
+  const recent = list.filter((r) => r.d && r.d.getTime() >= yearAgo());
+  const a = recent.length >= 2 ? recent : list;
+  if (a.length < 2) return null;
+  const days = (a[a.length - 1].d - a[0].d) / DAY;
+  return days > 0 ? (a[a.length - 1].mileage - a[0].mileage) / days : null;
+}
+
+// ประมาณระยะที่ยังวิ่งได้ = ลิตรที่เติมล่าสุด × อัตราเฉลี่ย − ระยะที่น่าจะวิ่งไปแล้ว (ถือว่าเติมเต็มถัง)
+function estimate(list) {
+  const last = list[list.length - 1];
+  const seg = segments(list, yearAgo());
+  const kml = seg.length ? sumBy(seg, (x) => x.dist) / sumBy(seg, (x) => x.liters) : average(list, list.filter((r) => r.rate != null));
+  const costKm = seg.length ? sumBy(seg, (x) => x.cost) / sumBy(seg, (x) => x.dist) : null;
+  if (!last || !last.d) return { kml, costKm };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const days = Math.max(0, Math.round((today - last.d) / DAY));
+  const perDay = kmPerDay(list) || 0;
+  const driven = perDay * days;
+  const range = kml ? last.liters * kml : null;
+  return {
+    kml, costKm, days, perDay, last,
+    range, remaining: range != null ? Math.max(0, range - driven) : null,
+    odo: last.mileage + driven,
+  };
+}
+
+// หน้าแรก: ตัวเลขใหญ่ (แตะเพื่อสลับ) + สถานะ + คำอธิบายในเมนู
+function renderHome(list) {
+  const e = estimate(list);
+  const avg = e.kml;
+  const last = e.last;
+  const ago = last ? (e.days <= 0 ? t('ago.today') : t('ago.days', { n: e.days })) : '';
+  const modes = [
+    e.remaining != null && e.remaining < 30
+      // ประมาณแล้วน่าจะใช้น้ำมันถังล่าสุดหมดแล้ว
+      ? { num: `~${fmtInt(e.range)}`, unit: t('unit.km'), status: t('hero.timeToFill'),
+        sub: `${t('hero.perTank')} · ${t('hero.lastFill', { ago })}` }
+      : { num: e.remaining != null ? `~${fmtInt(e.remaining)}` : '–', unit: t('unit.km'),
+        status: t('hero.remaining'), sub: last ? `${t('hero.lastFill', { ago })} · ${t('hero.perDay', { n: fmtInt(e.perDay) })}` : '' },
+    { num: avg ? fmt(avg, 1) : '–', unit: t('unit.kml'), status: t('hero.kml'), sub: last ? t('hero.lastFill', { ago }) : '' },
+    { num: e.costKm ? fmt(e.costKm) : '–', unit: t('unit.bahtKm'), status: t('hero.costKm'), sub: t('hero.year') },
+  ];
+  const m = modes[state.hero] || modes[0];
+  $('#heroNum').textContent = m.num;
+  $('#heroUnit').textContent = m.unit;
+  $('#heroStatus').innerHTML = `${esc(m.status)}<small>${esc(m.sub)}</small>`;
+  $$('#heroDots i').forEach((d, i) => d.classList.toggle('on', i === state.hero));
   const withRate = list.filter((r) => r.rate != null);
   const lastRate = withRate[withRate.length - 1];
   $('#mEconomy').textContent = avg ? t('menu.economy', { avg: fmt(avg), last: lastRate ? fmt(lastRate.rate) : '–' }) : '';
@@ -214,6 +280,14 @@ function renderHome(list) {
   const yearTotal = months.filter((m) => m.d.getFullYear() === now.getFullYear() && m.k <= nowK).reduce((s2, m) => s2 + m.total, 0);
   $('#mMonthly').textContent = t('menu.monthly', { now: fmtInt(cur ? cur.total : 0), avg: fmtInt(yearTotal / (now.getMonth() + 1)) });
 }
+
+$('#hero').addEventListener('click', () => {
+  state.hero = (state.hero + 1) % 3;
+  store.set(KEYS.hero, state.hero);
+  const el = $('#hero');
+  el.classList.remove('flip'); void el.offsetWidth; el.classList.add('flip');
+  renderHome(entries());
+});
 
 function inRange(list) {
   const withRate = list.filter((r) => r.rate != null && Number.isFinite(r.rate));
@@ -241,10 +315,8 @@ function renderStats(list) {
   const withRate = list.filter((r) => r.rate != null);
   const last = withRate[withRate.length - 1];
   $('#statLast').textContent = last ? fmt(last.rate) : '–';
-  const now = new Date();
-  const month = list.filter((r) => r.d && r.d.getMonth() === now.getMonth() && r.d.getFullYear() === now.getFullYear())
-    .reduce((s, r) => s + r.price, 0);
-  $('#statMonth').textContent = fmtInt(month);
+  const seg = segments(list, state.range === 'all' ? 0 : Date.now() - Number(state.range) * DAY);
+  $('#statCostKm').textContent = seg.length ? fmt(sumBy(seg, (x) => x.cost) / sumBy(seg, (x) => x.dist)) : '–';
 }
 
 function niceStep(v) {
@@ -333,7 +405,7 @@ function historyRow(r, i, enterIdx) {
   return `
     <li data-i="${i}" role="button" tabindex="0"${enterIdx != null ? ` class="enter" style="--i:${enterIdx}"` : ''}>
       <div class="h-main">${fmtDate(r.d)}<span class="badge ${typeClass(r.type)}">${esc(r.type)}</span>${r.pending ? `<span class="badge pending">${esc(t('pending'))}</span>` : ''}</div>
-      <div class="h-rate">${r.rate != null ? fmt(r.rate) : '–'}<small>${esc(r.rate != null ? t('unit.kml') : t('history.waitNext'))}</small></div>
+      <div class="h-rate${r.low ? ' low' : ''}">${r.rate != null ? fmt(r.rate) : '–'}<small>${esc(r.rate != null ? t('unit.kml') : t('history.waitNext'))}</small></div>
       <div class="h-sub">${fmtInt(r.mileage)} ${esc(t('unit.km'))} · ${fmt(r.liters)} ${esc(t('unit.l'))} · ฿${fmt(r.oilPrice)}/${esc(t('unit.l'))}</div>
       <div class="h-sub" style="text-align:right">฿${fmtInt(r.price)}</div>
     </li>`;
@@ -376,9 +448,14 @@ function monthlyData(list) {
   for (const r of list) {
     if (!r.d) continue;
     const k = monthKey(r.d);
-    const m = map.get(k) || { k, total: 0, count: 0, liters: 0 };
+    const m = map.get(k) || { k, total: 0, count: 0, liters: 0, dist: 0 };
     m.total += r.price; m.count += 1; m.liters += r.liters;
     map.set(k, m);
+  }
+  // ระยะทางของเดือน = ช่วงที่เริ่มในเดือนนั้น
+  for (const sg of segments(list)) {
+    const m = map.get(monthKey(sg.from.d));
+    if (m) m.dist += sg.dist;
   }
   const nowK = monthKey(new Date());
   const keys = [...map.keys()];
@@ -386,7 +463,7 @@ function monthlyData(list) {
   const months = [];
   // เติมเดือนที่ไม่ได้เติมน้ำมันเป็น 0 เพื่อให้กราฟต่อเนื่อง
   for (let k = Math.min(...keys); k <= Math.max(nowK, ...keys); k++) {
-    months.push({ ...(map.get(k) || { k, total: 0, count: 0, liters: 0 }), d: keyToDate(k) });
+    months.push({ ...(map.get(k) || { k, total: 0, count: 0, liters: 0, dist: 0 }), d: keyToDate(k) });
   }
   return months;
 }
@@ -425,8 +502,8 @@ function renderMonthly(list) {
     <li${anim && i < 12 ? ` class="enter" style="--i:${i}"` : ''}>
       <div class="h-main">${fmtMonthLong(m.d)}${m.k === nowK ? `<span class="badge">${esc(t('m.thisMonth'))}</span>` : ''}${max && m.k === max.k ? `<span class="badge t-prem">${esc(t('m.highest'))}</span>` : ''}</div>
       <div class="h-rate">฿${fmtInt(m.total)}</div>
-      <div class="h-sub">${esc(t('m.fills', { n: m.count }))} · ${fmt(m.liters)} ${esc(t('unit.liters'))}</div>
-      <div class="h-sub" style="text-align:right">${m.liters ? `฿${fmt(m.total / m.liters)}/${esc(t('unit.l'))}` : ''}</div>
+      <div class="h-sub">${esc(t('m.fills', { n: m.count }))} · ${fmt(m.liters)} ${esc(t('unit.liters'))}${m.dist ? ` · ~${fmtInt(m.dist)} ${esc(t('unit.km'))}` : ''}</div>
+      <div class="h-sub" style="text-align:right">${m.dist ? `฿${fmt(m.total / m.dist)}/${esc(t('unit.km'))}` : ''}</div>
       <div class="bar-mini"><i style="width:${(m.total / top) * 100}%"></i></div>
     </li>`).join('') || `<li><div class="h-sub">${esc(t('chart.empty'))}</div></li>`;
 }
@@ -584,6 +661,291 @@ function renderLoan() {
   }
 }
 
+/* ---------- 2. เทียบชนิดน้ำมัน ---------- */
+function renderCompare(list) {
+  const seg = segments(list);
+  const types = OIL_TYPES.map((ty) => {
+    const xs = seg.filter((x) => x.type === ty);
+    if (xs.length < 2) return null;
+    const dist = sumBy(xs, (x) => x.dist), liters = sumBy(xs, (x) => x.liters), cost = sumBy(xs, (x) => x.cost);
+    return { ty, n: xs.length, kml: dist / liters, perL: cost / liters, perKm: cost / dist };
+  }).filter(Boolean);
+  const el = $('#typeCompare');
+  if (!types.length) { el.innerHTML = `<p class="hint">${esc(t('chart.notEnough'))}</p>`; return; }
+  const best = types.reduce((a, b) => (b.perKm < a.perKm ? b : a));
+  const worst = Math.max(...types.map((x) => x.perKm));
+  el.innerHTML = types.map((x) => `
+    <div class="cmp-row ${typeClass(x.ty)}">
+      <div class="cmp-head"><span class="badge ${typeClass(x.ty)}" style="margin:0">${esc(x.ty)}</span>
+        ${x === best && types.length > 1 ? `<span class="cmp-best">${esc(t('cmp.best'))}</span>` : ''}
+        <b>฿${fmt(x.perKm)}<small>/${esc(t('unit.km'))}</small></b></div>
+      <div class="cmp-bar"><i style="width:${(x.perKm / worst) * 100}%"></i></div>
+      <div class="h-sub">${fmt(x.kml)} ${esc(t('unit.kml'))} · ฿${fmt(x.perL)}/${esc(t('unit.l'))} · ${esc(t('cmp.n', { n: x.n }))}</div>
+    </div>`).join('');
+}
+
+/* ---------- 4. สรุปรายปี ---------- */
+function renderYear(list) {
+  const years = [...new Set(list.filter((r) => r.d).map((r) => r.d.getFullYear()))].sort((a, b) => b - a);
+  const seg = $('#yearSeg');
+  if (!years.length) {
+    seg.innerHTML = '';
+    $('#yearBody').innerHTML = `<p class="empty-state">${esc(t('chart.empty'))}</p>`;
+    $('#mYear').textContent = '';
+    return;
+  }
+  if (!years.includes(state.year)) state.year = years[0];
+  seg.innerHTML = years.slice(0, 5).map((y) => `<button type="button" data-year="${y}" class="${y === state.year ? 'active' : ''}">${LANG === 'th' ? y + 543 : y}</button>`).join('');
+  const y = state.year;
+  const inYear = list.filter((r) => r.d && r.d.getFullYear() === y);
+  const before = list.filter((r) => r.d && r.d.getFullYear() < y);
+  const startKm = before.length ? before[before.length - 1].mileage : inYear[0].mileage;
+  const dist = inYear[inYear.length - 1].mileage - startKm;
+  const fuel = sumBy(inYear, (r) => r.price);
+  const liters = sumBy(inYear, (r) => r.liters);
+  const segs = segments(list).filter((x) => x.from.d.getFullYear() === y);
+  const kml = segs.length ? sumBy(segs, (x) => x.dist) / sumBy(segs, (x) => x.liters) : null;
+  const costKm = dist > 0 ? fuel / dist : null;
+  const other = (state.car?.expenses || []).filter((x) => x.date.startsWith(String(y))).reduce((acc, x) => acc + x.amount, 0);
+  const byMonth = monthlyData(list).filter((m) => m.d.getFullYear() === y);
+  const topMonth = byMonth.reduce((a, m) => (m.total > (a?.total ?? 0) ? m : a), null);
+  const typeCount = {};
+  inYear.forEach((r) => { typeCount[r.type] = (typeCount[r.type] || 0) + 1; });
+  const favType = Object.entries(typeCount).sort((a, b) => b[1] - a[1])[0];
+  const anim = state.animate && !reduceMotion;
+  const tiles = [
+    [t('yr.distance'), fmtInt(dist), t('unit.km')],
+    [t('yr.fills'), String(inYear.length), t('yr.times')],
+    [t('yr.liters'), fmt(liters, 0), t('unit.liters')],
+    [t('yr.kml'), kml ? fmt(kml) : '–', t('unit.kml')],
+    [t('yr.fuel'), `฿${fmtInt(fuel)}`, t('yr.fuelSub')],
+    [t('yr.other'), `฿${fmtInt(other)}`, t('yr.otherSub')],
+    [t('yr.total'), `฿${fmtInt(fuel + other)}`, dist ? t('yr.perKmAll', { n: fmt((fuel + other) / dist) }) : ''],
+    [t('yr.costKm'), costKm ? `฿${fmt(costKm)}` : '–', t('yr.costKmSub')],
+    [t('yr.topMonth'), topMonth ? fmtMonth(topMonth.d) : '–', topMonth ? `฿${fmtInt(topMonth.total)}` : ''],
+    [t('yr.favType'), favType ? favType[0] : '–', favType ? t('cmp.n', { n: favType[1] }) : ''],
+  ];
+  $('#yearBody').innerHTML = `<div class="tiles">${tiles.map(([k, v, u], i) => `
+    <div class="tile${anim ? ' enter' : ''}" style="--i:${i}"><span class="stat-label">${esc(k)}</span><b>${esc(v)}</b><span class="stat-unit">${esc(u)}</span></div>`).join('')}</div>`;
+  const cy = new Date().getFullYear();
+  const cur = list.filter((r) => r.d && r.d.getFullYear() === cy);
+  $('#mYear').textContent = cur.length ? t('menu.year', { y: LANG === 'th' ? cy + 543 : cy, n: fmtInt(sumBy(cur, (r) => r.price)) }) : '';
+}
+$('#yearSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-year]');
+  if (!b) return;
+  state.year = +b.dataset.year;
+  state.animate = true; renderYear(entries()); state.animate = false;
+});
+
+/* ---------- 6–8. ดูแลรถ: เช็กระยะ, ภาษี/ประกัน/พ.ร.บ., ค่าใช้จ่ายอื่น ---------- */
+const EXP_CATS = ['Service', 'Repair', 'Wash', 'Toll', 'Parking', 'Other'];
+const RENEWALS = [['taxDue', 'rem.tax'], ['insuranceDue', 'rem.insurance'], ['actDue', 'rem.act']];
+const DEFAULT_INTERVAL = 10000;
+const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+async function loadCar() {
+  if (!state.setup) return;
+  try {
+    const data = await apiGet('car');
+    if (!data.car) throw new Error('needUpdate');
+    state.car = { expenses: data.expenses, settings: data.settings };
+    state.carError = null;
+    store.set(KEYS.car, state.car);
+  } catch (err) {
+    console.error(err);
+    state.carError = err.message === 'needUpdate' ? 'needUpdate' : 'failed';
+  }
+  const list = entries();
+  renderCare(list);
+  renderAlerts(list);
+  renderYear(list);
+}
+
+async function carPost(body) {
+  const res = await fetch(state.setup.url, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ ...body, k: state.setup.k }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  state.car = { expenses: data.expenses, settings: data.settings };
+  store.set(KEYS.car, state.car);
+}
+
+// สถานะการแจ้งเตือนทั้งหมด (ใช้ทั้งหน้าดูแลรถและหน้าแรก)
+function reminders(list) {
+  const out = [];
+  if (!state.car) return out;
+  const st = state.car.settings || {};
+  const e = estimate(list);
+  const interval = Number(st.serviceInterval) || DEFAULT_INTERVAL;
+  const services = state.car.expenses.filter((x) => x.category === 'Service' && x.mileage);
+  const lastSvc = Math.max(Number(st.lastServiceKm) || 0, ...services.map((x) => x.mileage));
+  if (lastSvc > 0) {
+    const nextKm = lastSvc + interval;
+    const left = nextKm - (e.odo || 0);
+    out.push({ key: 'service', icon: '🔧', label: t('rem.service'), value: t('rem.atKm', { km: fmtInt(nextKm) }),
+      due: left <= 0 ? t('rem.overdueKm', { n: fmtInt(-left) }) : t('rem.leftKm', { n: fmtInt(left) }), urgent: left < 1000 });
+  } else {
+    out.push({ key: 'service', icon: '🔧', label: t('rem.service'), value: t('rem.notSet'), due: '', urgent: false });
+  }
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  for (const [k, labelKey] of RENEWALS) {
+    const d = parseDate(st[k]);
+    if (!d) { out.push({ key: k, icon: '📄', label: t(labelKey), value: t('rem.notSet'), due: '', urgent: false }); continue; }
+    const days = Math.round((d - today) / DAY);
+    out.push({ key: k, icon: '📄', label: t(labelKey), value: fmtDate(d), urgent: days <= 30, renew: days <= 30,
+      due: days < 0 ? t('rem.overdueDays', { n: -days }) : days === 0 ? t('rem.today') : t('rem.leftDays', { n: days }) });
+  }
+  return out;
+}
+
+function renderCare(list) {
+  const body = $('#careBody');
+  if (!state.setup) { body.innerHTML = `<p class="empty-state">${esc(t('loan.notConnected'))}</p>`; $('#mCare').textContent = ''; return; }
+  if (!state.car) {
+    body.innerHTML = `<p class="empty-state">${esc(state.carError === 'needUpdate' ? t('care.needUpdate') : t('loan.loading'))}</p>`;
+    $('#mCare').textContent = state.carError === 'needUpdate' ? t('care.needUpdateShort') : '';
+    return;
+  }
+  const rem = reminders(list);
+  const urgent = rem.filter((r) => r.urgent);
+  const firstDue = rem.find((r) => r.due);
+  $('#mCare').textContent = urgent.length ? urgent.map((r) => `${r.label} ${r.due}`).join(' · ')
+    : firstDue ? `${firstDue.label} ${firstDue.due}` : t('care.sub');
+
+  const y = new Date().getFullYear();
+  const exps = [...state.car.expenses].sort((a, b) => (a.date < b.date ? 1 : -1));
+  const yearExp = exps.filter((x) => x.date.startsWith(String(y)));
+  const fuelYear = sumBy(list.filter((r) => r.d && r.d.getFullYear() === y), (r) => r.price);
+  const otherYear = sumBy(yearExp, (x) => x.amount);
+  const byCat = EXP_CATS.map((c) => [c, sumBy(yearExp.filter((x) => x.category === c), (x) => x.amount)]).filter(([, v]) => v > 0);
+  const maxCat = Math.max(1, fuelYear, ...byCat.map(([, v]) => v));
+  const anim = state.animate && !reduceMotion;
+
+  body.innerHTML = `
+    <section class="card">
+      <div class="card-head"><h2>${esc(t('care.reminders'))}</h2><button class="text-link" data-open="careSettings">${esc(t('rem.edit'))}</button></div>
+      ${rem.map((r) => `
+        <div class="rem-row${r.urgent ? ' urgent' : ''}">
+          <span class="rem-icon">${r.icon}</span>
+          <div class="rem-text"><b>${esc(r.label)}</b><small>${esc(r.value)}</small></div>
+          <div class="rem-due">${esc(r.due)}${r.renew ? `<button class="text-link" data-renew="${r.key}">${esc(t('rem.renewed'))}</button>` : ''}</div>
+        </div>`).join('')}
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>${esc(t('care.costYear', { y: LANG === 'th' ? y + 543 : y }))}</h2><b>฿${fmtInt(fuelYear + otherYear)}</b></div>
+      ${[['__fuel', fuelYear], ...byCat].map(([c, v]) => `
+        <div class="cat-row"><span>${esc(c === '__fuel' ? t('care.fuel') : t(`cat.${c}`))}</span><b>฿${fmtInt(v)}</b>
+          <div class="cmp-bar"><i style="width:${(v / maxCat) * 100}%"></i></div></div>`).join('')}
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>${esc(t('care.expenses'))}</h2><button class="text-link" data-open="expenseForm">+ ${esc(t('care.add'))}</button></div>
+      <ul class="history" id="expList">${exps.map((x, i) => `
+        <li data-exp="${x.row}"${anim && i < 12 ? ` class="enter" style="--i:${i}"` : ''}>
+          <div class="h-main">${fmtDate(parseDate(x.date))}<span class="badge">${esc(t(`cat.${x.category}`))}</span></div>
+          <div class="h-rate">฿${fmtInt(x.amount)}</div>
+          <div class="h-sub">${x.mileage ? `${fmtInt(x.mileage)} ${esc(t('unit.km'))}` : ''}${x.note ? `${x.mileage ? ' · ' : ''}${esc(x.note)}` : ''}</div><div></div>
+        </li>`).join('') || `<li><div class="h-sub">${esc(t('care.empty'))}</div></li>`}</ul>
+    </section>`;
+}
+
+$('#careBody').addEventListener('click', async (e) => {
+  const renew = e.target.closest('[data-renew]');
+  if (renew) {
+    const k = renew.dataset.renew;
+    const d = parseDate(state.car.settings[k]);
+    if (!d) return;
+    const next = new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
+    try { await carPost({ action: 'setSettings', settings: { [k]: toIso(next) } }); toast(t('t.saved')); }
+    catch { toast(t('t.syncFailed')); }
+    render({ keepHistory: true });
+    return;
+  }
+  const li = e.target.closest('li[data-exp]');
+  if (!li) return;
+  const x = state.car.expenses.find((ex) => ex.row === +li.dataset.exp);
+  if (!x || !confirm(t('exp.confirmDelete', { cat: t(`cat.${x.category}`), amount: fmtInt(x.amount) }))) return;
+  try { await carPost({ action: 'deleteExpense', row: x.row, amount: x.amount }); toast(t('t.deletedSheet')); }
+  catch (err) { toast(err.message === 'mismatch' ? t('t.changed') : t('t.deleteFailed')); loadCar(); }
+  render({ keepHistory: true });
+});
+
+// ฟอร์มค่าใช้จ่ายอื่น
+const expForm = $('#expForm');
+let expCat = 'Service';
+function initExpenseForm() {
+  expForm.reset();
+  expForm.date.value = isoToday();
+  const e = estimate(entries());
+  expForm.mileage.placeholder = e.odo ? fmtInt(e.odo) : '';
+  $('#catChips').innerHTML = EXP_CATS.map((c) => `<button type="button" class="chip" data-cat="${c}">${esc(t(`cat.${c}`))}</button>`).join('');
+  setExpCat('Service');
+  setTimeout(() => expForm.amount.focus(), 450);
+}
+function setExpCat(c) {
+  expCat = c;
+  $$('#catChips .chip').forEach((b) => b.classList.toggle('active', b.dataset.cat === c));
+  $('#expMileageHint').textContent = c === 'Service' ? t('exp.mileageService') : t('exp.mileageOptional');
+  updateExpForm();
+}
+function updateExpForm() {
+  const amount = num(expForm.amount.value), km = num(expForm.mileage.value);
+  $('#expSaveBtn').disabled = !(expForm.date.value && Number.isFinite(amount) && amount >= 0 && (expCat !== 'Service' || km > 0));
+}
+$('#catChips').addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (b) setExpCat(b.dataset.cat); });
+expForm.addEventListener('input', updateExpForm);
+expForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!state.setup) { toast(t('t.notConnected')); return; }
+  const km = num(expForm.mileage.value);
+  const body = { action: 'addExpense', date: expForm.date.value, category: expCat, amount: num(expForm.amount.value),
+    mileage: Number.isFinite(km) ? km : null, note: expForm.note.value.trim() };
+  closeTop();
+  toast(t('t.saving'));
+  try { await carPost(body); toast(t('t.saved')); }
+  catch (err) { console.error(err); toast(t('t.syncFailed'), 3500); }
+  state.animate = isOpen('care');
+  render({ keepHistory: true });
+});
+
+// ฟอร์มตั้งค่าการแจ้งเตือน
+const remForm = $('#remForm');
+function initRemForm() {
+  const st = state.car?.settings || {};
+  remForm.serviceInterval.value = st.serviceInterval || DEFAULT_INTERVAL;
+  remForm.lastServiceKm.value = st.lastServiceKm || '';
+  for (const [k] of RENEWALS) remForm[k].value = st[k] || '';
+}
+remForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!state.setup) { toast(t('t.notConnected')); return; }
+  const lastKm = num(remForm.lastServiceKm.value);
+  const settings = {
+    serviceInterval: String(num(remForm.serviceInterval.value) || DEFAULT_INTERVAL),
+    lastServiceKm: Number.isFinite(lastKm) ? String(lastKm) : '',
+  };
+  for (const [k] of RENEWALS) settings[k] = remForm[k].value || '';
+  closeTop();
+  try { await carPost({ action: 'setSettings', settings }); toast(t('t.saved')); }
+  catch (err) { console.error(err); toast(t('t.syncFailed'), 3500); }
+  render({ keepHistory: true });
+});
+
+/* ---------- 5. การแจ้งเตือนบนหน้าแรก ---------- */
+function renderAlerts(list) {
+  const items = [];
+  const rated = list.filter((r) => r.rate != null);
+  const lastRated = rated[rated.length - 1];
+  if (lastRated && lastRated.low) {
+    const base = sumBy(rated, (r) => r.rate) / rated.length;
+    items.push({ icon: '⚠️', text: t('alert.low', { pct: Math.round((1 - lastRated.rate / base) * 100) }), open: 'economy' });
+  }
+  for (const r of reminders(list)) if (r.urgent && r.due) items.push({ icon: r.icon, text: `${r.label} · ${r.due}`, open: 'care' });
+  $('#alerts').innerHTML = items.map((a) => `<button class="alert" data-open="${a.open}"><span>${a.icon}</span><span>${esc(a.text)}</span></button>`).join('');
+}
+
 /* ---------- หน้าซ้อน (stack): หน้าย่อย / ฟอร์ม / ตั้งค่า ---------- */
 const stack = [];
 const isOpen = (id) => stack.some((sh) => sh.id === id);
@@ -598,6 +960,10 @@ const ON_OPEN = {
   monthly: () => { state.animate = true; renderMonthly(entries()); state.animate = false; },
   loan: () => { state.animate = true; renderLoan(); state.animate = false; },
   prices: () => renderPrices(),
+  yearPage: () => { state.animate = true; renderYear(entries()); state.animate = false; },
+  care: () => { state.animate = true; renderCare(entries()); state.animate = false; },
+  expenseForm: () => initExpenseForm(),
+  careSettings: () => initRemForm(),
 };
 
 function open(id) {
