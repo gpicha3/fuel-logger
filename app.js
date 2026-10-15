@@ -243,7 +243,16 @@ function odoReading() {
   return pick ? { km: pick.km, d: parseDate(pick.date) } : null;
 }
 
-// เติมเต็มถังทุกครั้ง: ระยะที่วิ่งได้อีก = ความจุถัง × กม./ลิตร − ระยะที่วิ่งไปแล้วหลังเติม
+// ระยะต่อถังที่ขับจริง = ค่ากลางของระยะทางระหว่างการเติม (1 ปีล่าสุด) เพราะเติมเต็มถังทุกครั้ง
+// แต่ปกติแวะเติมก่อนน้ำมันหมด จึงสมจริงกว่าความจุถัง × กม./ลิตร (ใช้เป็นค่าสำรองเมื่อข้อมูลน้อย)
+function typicalTankKm(list) {
+  const d = segments(list, yearAgo()).map((x) => x.dist).sort((a, b) => a - b);
+  if (d.length < 5) return null;
+  const mid = Math.floor(d.length / 2);
+  return d.length % 2 ? d[mid] : (d[mid - 1] + d[mid]) / 2;
+}
+
+// ระยะที่วิ่งได้อีก = ระยะต่อถังที่ขับจริง − ระยะที่วิ่งไปแล้วหลังเติม
 // ระยะที่วิ่งไปแล้ว = จากเลขไมล์ที่อัปเดตไว้ (ถ้ามีหลังเติมครั้งล่าสุด) + ค่าเฉลี่ยต่อวันสำหรับวันที่เหลือ
 function estimate(list) {
   const last = list[list.length - 1];
@@ -259,9 +268,10 @@ function estimate(list) {
   const sinceReading = useReading ? Math.max(0, Math.round((today - reading.d) / DAY)) : 0;
   const odo = useReading ? reading.km + perDay * sinceReading : last.mileage + perDay * days;
   const driven = odo - last.mileage;
-  const range = kml ? tankLiters() * kml : null;
+  const typical = typicalTankKm(list);
+  const range = typical || (kml ? tankLiters() * kml : null);
   return {
-    kml, costKm, days, perDay, last, odo, reading: useReading ? reading : null, sinceReading,
+    kml, costKm, days, perDay, last, odo, reading: useReading ? reading : null, sinceReading, typical,
     range, remaining: range != null ? Math.max(0, range - driven) : null,
   };
 }
@@ -276,7 +286,7 @@ function renderHome(list) {
     e.remaining != null && e.remaining < 30
       // ประมาณแล้วน่าจะใช้น้ำมันถังล่าสุดหมดแล้ว
       ? { num: `~${fmtInt(e.range)}`, unit: t('unit.km'), status: t('hero.timeToFill'),
-        sub: `${t('hero.perTank', { l: tankLiters() })} · ${t('hero.lastFill', { ago })}` }
+        sub: `${e.typical ? t('hero.perTankTypical') : t('hero.perTank', { l: tankLiters() })} · ${t('hero.lastFill', { ago })}` }
       : { num: e.remaining != null ? `~${fmtInt(e.remaining)}` : '–', unit: t('unit.km'),
         status: t('hero.remaining'),
         sub: !last ? '' : e.reading
