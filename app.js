@@ -775,6 +775,7 @@ $('#yearSeg').addEventListener('click', (e) => {
 const EXP_CATS = ['Service', 'Repair', 'Wash', 'Toll', 'Parking', 'Other'];
 const RENEWALS = [['taxDue', 'rem.tax'], ['insuranceDue', 'rem.insurance'], ['actDue', 'rem.act']];
 const DEFAULT_INTERVAL = 10000;
+const DEFAULT_MONTHS = 6;
 const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 async function loadCar() {
@@ -812,18 +813,46 @@ function reminders(list) {
   if (!state.car) return out;
   const st = state.car.settings || {};
   const e = estimate(list);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   const interval = Number(st.serviceInterval) || DEFAULT_INTERVAL;
-  const services = state.car.expenses.filter((x) => x.category === 'Service' && x.mileage);
-  const lastSvc = Math.max(Number(st.lastServiceKm) || 0, ...services.map((x) => x.mileage));
-  if (lastSvc > 0) {
-    const nextKm = lastSvc + interval;
-    const left = nextKm - (e.odo || 0);
-    out.push({ key: 'service', icon: '🔧', label: t('rem.service'), value: t('rem.atKm', { km: fmtInt(nextKm) }),
-      due: left <= 0 ? t('rem.overdueKm', { n: fmtInt(-left) }) : t('rem.leftKm', { n: fmtInt(left) }), urgent: left < 1000 });
+  const months = Number(st.serviceMonths) || DEFAULT_MONTHS;
+  const perDay = e.perDay || 0;
+  // เลขไมล์โดยประมาณ ณ วันหนึ่ง (ใช้กับนัดล่วงหน้าที่ยังไม่รู้เลขไมล์)
+  const odoAt = (d) => (e.odo || 0) + perDay * Math.round((d - today) / DAY);
+  const services = state.car.expenses.filter((x) => x.category === 'Service' && parseDate(x.date))
+    .map((x) => ({ d: parseDate(x.date), km: x.mileage }))
+    .sort((a, b) => a.d - b.d);
+  const upcoming = services.find((x) => x.d > today);              // นัดเช็กระยะที่ยังไม่ถึง (ใกล้ที่สุด)
+  const done = services.filter((x) => x.d <= today).at(-1);        // เช็กครั้งล่าสุดที่ผ่านมาแล้ว
+  const manual = st.lastServiceDate || st.lastServiceKm
+    ? { d: parseDate(st.lastServiceDate), km: Number(st.lastServiceKm) || null } : null;
+  // ฐานสำหรับคำนวณรอบถัดไป: นัดที่กำลังจะถึง > ครั้งล่าสุด > ค่าที่ตั้งเอง (เลือกอันที่ใหม่กว่า)
+  let base = upcoming || done;
+  if (!upcoming && manual && (!done || (manual.d && manual.d > done.d) || (!manual.d && manual.km > (done.km || 0)))) base = manual;
+  if (base) {
+    const baseKm = base.km || (base.d ? odoAt(base.d) : null);
+    const nextKm = baseKm ? baseKm + interval : null;
+    const nextDate = base.d ? new Date(base.d.getFullYear(), base.d.getMonth() + months, base.d.getDate()) : null;
+    const leftKm = nextKm != null ? nextKm - (e.odo || 0) : null;
+    const leftDays = nextDate ? Math.round((nextDate - today) / DAY) : null;
+    // แล้วแต่อะไรถึงก่อน: แปลงระยะเป็นวันด้วยระยะวิ่งเฉลี่ยต่อวัน
+    const kmDays = leftKm != null && perDay > 0 ? leftKm / perDay : Infinity;
+    const byKm = leftKm != null && (leftDays == null || kmDays < leftDays);
+    const parts = [nextKm != null ? t('rem.atKmShort', { km: fmtInt(nextKm) }) : '', nextDate ? fmtDate(nextDate) : ''].filter(Boolean);
+    if (upcoming) {
+      const days = Math.round((upcoming.d - today) / DAY);
+      out.push({ key: 'service', icon: '🔧', label: t('rem.serviceAppt'), value: `${fmtDate(upcoming.d)} · ${t('rem.thenNext', { next: parts.join(t('rem.or')) })}`,
+        due: days === 0 ? t('rem.today') : t('rem.leftDays', { n: days }), urgent: days <= 7 });
+    } else {
+      const due = byKm
+        ? (leftKm <= 0 ? t('rem.overdueKm', { n: fmtInt(-leftKm) }) : t('rem.leftKm', { n: fmtInt(leftKm) }))
+        : (leftDays < 0 ? t('rem.overdueDays', { n: -leftDays }) : leftDays === 0 ? t('rem.today') : t('rem.leftDays', { n: leftDays }));
+      out.push({ key: 'service', icon: '🔧', label: t('rem.service'), value: t('rem.nextAt', { when: parts.join(t('rem.or')) }),
+        due, urgent: (leftKm != null && leftKm < 1000) || (leftDays != null && leftDays <= 30) });
+    }
   } else {
     out.push({ key: 'service', icon: '🔧', label: t('rem.service'), value: t('rem.notSet'), due: '', urgent: false });
   }
-  const today = new Date(); today.setHours(0, 0, 0, 0);
   for (const [k, labelKey] of RENEWALS) {
     const d = parseDate(st[k]);
     if (!d) { out.push({ key: k, icon: '📄', label: t(labelKey), value: t('rem.notSet'), due: '', urgent: false }); continue; }
@@ -925,7 +954,7 @@ function setExpCat(c) {
 }
 function updateExpForm() {
   const amount = num(expForm.amount.value), km = num(expForm.mileage.value);
-  $('#expSaveBtn').disabled = !(expForm.date.value && Number.isFinite(amount) && amount >= 0 && (expCat !== 'Service' || km > 0));
+  $('#expSaveBtn').disabled = !(expForm.date.value && Number.isFinite(amount) && amount >= 0 && (!expForm.mileage.value || km > 0));
 }
 $('#catChips').addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (b) setExpCat(b.dataset.cat); });
 expForm.addEventListener('input', updateExpForm);
@@ -949,6 +978,8 @@ function initRemForm() {
   const st = state.car?.settings || {};
   remForm.serviceInterval.value = st.serviceInterval || DEFAULT_INTERVAL;
   remForm.tankL.value = st.tankL || DEFAULT_TANK;
+  remForm.serviceMonths.value = st.serviceMonths || DEFAULT_MONTHS;
+  remForm.lastServiceDate.value = st.lastServiceDate || '';
   remForm.lastServiceKm.value = st.lastServiceKm || '';
   for (const [k] of RENEWALS) remForm[k].value = st[k] || '';
 }
@@ -959,6 +990,8 @@ remForm.addEventListener('submit', async (e) => {
   const settings = {
     serviceInterval: String(num(remForm.serviceInterval.value) || DEFAULT_INTERVAL),
     tankL: String(num(remForm.tankL.value) || DEFAULT_TANK),
+    serviceMonths: String(num(remForm.serviceMonths.value) || DEFAULT_MONTHS),
+    lastServiceDate: remForm.lastServiceDate.value || '',
     lastServiceKm: Number.isFinite(lastKm) ? String(lastKm) : '',
   };
   for (const [k] of RENEWALS) settings[k] = remForm[k].value || '';
