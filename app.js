@@ -42,7 +42,7 @@ const state = {
   rows: [],
   pending: store.get(KEYS.pending, []),
   range: '365', // ค่าเริ่มต้นของกราฟ = 1 ปี
-  mRange: store.get(KEYS.mRange, '12'),
+  mRange: ['6', '12', 'all'].includes(store.get(KEYS.mRange, '12')) ? store.get(KEYS.mRange, '12') : '12',
   loan: store.get(KEYS.loan, null),
   car: store.get(KEYS.car, null), // { expenses, settings } จากชีต Expenses / Car settings
   carError: null,
@@ -148,7 +148,6 @@ async function apiPost(entry) {
 async function sync({ quiet = false } = {}) {
   if (!state.setup || state.loading) return;
   state.loading = true;
-  $('#carStage').classList.add('moving');
   try {
     // ส่งรายการที่ค้างอยู่ก่อน
     while (state.pending.length) {
@@ -167,7 +166,6 @@ async function sync({ quiet = false } = {}) {
     toast(err.message === 'unauthorized' ? t('t.badToken') : !navigator.onLine ? t('t.offline') : t('t.syncFailed'), 3500);
   } finally {
     state.loading = false;
-    $('#carStage').classList.remove('moving');
     state.animate = true;
     render();
   }
@@ -527,8 +525,7 @@ function renderMonthly(list) {
   $$('#mRangeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.range === state.mRange));
 
   let shown = months;
-  if (state.mRange === '12') shown = months.filter((m) => m.k > nowK - 12 && m.k <= nowK);
-  if (state.mRange === 'year') shown = months.filter((m) => m.d.getFullYear() === now.getFullYear() && m.k <= nowK);
+  if (state.mRange !== 'all') shown = months.filter((m) => m.k > nowK - Number(state.mRange) && m.k <= nowK);
   renderMonthlyChart(shown, max);
 
   const withData = [...months].reverse().filter((m) => m.count || m.k === nowK);
@@ -1094,13 +1091,6 @@ function closeTop() {
   sheet.classList.add('closing');
   const done = () => { sheet.hidden = true; sheet.classList.remove('closing'); sheet.style.transform = ''; };
   if (reduceMotion) done(); else setTimeout(done, 320);
-  // รถวิ่งกลับเข้ามาหลังปิดฟอร์ม
-  if (sheet.id === 'form') {
-    const stage = $('#carStage');
-    stage.classList.remove('driving');
-    stage.classList.add('returning');
-    setTimeout(() => stage.classList.remove('returning'), 900);
-  }
 }
 
 function closeSheets() { while (stack.length) closeTop(); }
@@ -1118,15 +1108,8 @@ async function renderPrices() {
 }
 
 // แตะรถ → รถวิ่งออก แล้วฟอร์มเลื่อนขึ้นมา
-async function startFill() {
-  if (stack.length) return;
-  const stage = $('#carStage');
-  if (!reduceMotion) {
-    stage.classList.remove('intro', 'returning');
-    stage.classList.add('driving');
-    await wait(380);
-  }
-  open('form');
+function startFill() {
+  if (!stack.length) open('form');
 }
 $('#carStage').addEventListener('click', startFill);
 $('#qAdd').addEventListener('click', startFill);
@@ -1621,5 +1604,4 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 
 applyStaticI18n();
 render();
-$('#carStage').classList.add('intro');
 if (state.setup) sync({ quiet: true });

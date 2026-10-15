@@ -325,17 +325,6 @@ textarea { font-size: 14px; resize: vertical; font-family: ui-monospace, Menlo, 
   position: absolute; left: 2%; right: 0; bottom: -6%; height: 16%; border-radius: 50%;
   background: radial-gradient(closest-side, rgba(0,0,0,.55), transparent); pointer-events: none; filter: blur(2px);
 }
-/* ล้อ: วงกลมที่หมุน แล้วบีบแนวนอนให้เป็นวงรีตามมุมมองของรูป */
-.wheel {
-  position: absolute; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
-  transform: translateX(-50%) scaleX(var(--k)); pointer-events: none;
-}
-.wheel img { width: 100%; height: 100%; display: block; transform-origin: var(--hub, 50% 50%); }
-.wheel-front { left: 61.65%; top: 56.64%; height: 36.86%; --k: .5; --hub: 43% 49%; }
-.wheel-rear { left: 95.25%; top: 55.01%; height: 26.29%; --k: .361; --hub: 41% 56%; }
-.car-stage.moving .wheel img, .car-stage.driving .wheel img { animation: wheel-spin .5s linear infinite; }
-.car-stage.intro .wheel img { animation: wheel-spin .5s linear 2; }
-@keyframes wheel-spin { to { transform: rotate(-360deg); } }
 
 /* ไฟหน้า/ไฟท้าย: เปิดเองในโหมดมืด */
 .lamp, .beam { position: absolute; pointer-events: none; opacity: 0; transition: opacity .6s; mix-blend-mode: screen; }
@@ -355,13 +344,7 @@ textarea { font-size: 14px; resize: vertical; font-family: ui-monospace, Menlo, 
 :root.is-dark .lamp.tail { animation: tail-pulse 2.6s ease-in-out infinite; }
 @keyframes tail-pulse { 50% { filter: brightness(.7); } }
 
-.car-stage .car { animation: car-in 1s var(--ease-out) both; }
 .car-stage:active .car { transform: scale(.97); transition: transform .15s; }
-@keyframes car-in { from { transform: translateX(120%); } }
-.car-stage.driving .car { animation: car-out .55s cubic-bezier(.55, 0, .8, .4) both; }
-@keyframes car-out { 0% { transform: none; } 18% { transform: translateX(3%) rotate(.5deg); } 100% { transform: translateX(-150%) scale(1.12); } }
-.car-stage.returning .car { animation: car-in .8s var(--ease-out) both; }
-.car-stage.returning .wheel img { animation: wheel-spin .5s linear 2; }
 
 /* ---------- ปุ่มกลม ---------- */
 .quick { display: flex; justify-content: center; gap: 34px; margin: 6px 0 22px; }
@@ -626,3 +609,6 @@ svg.ic { fill: currentColor; stroke: none; }
 .ring-btn { background: color-mix(in srgb, var(--text) 6%, transparent); border-color: transparent; }
 
 .date-pill input::-webkit-calendar-picker-indicator { display: none; }
+
+/* รถค่อย ๆ ปรากฏตอนเปิดแอป (ไม่มีรถวิ่ง) */
+.car-stage .car { animation: fade-in .8s ease-out both; }
