@@ -787,7 +787,6 @@ function renderCompare(list) {
 }
 
 /* ---------- 4. สรุปรายปี (แบบ Year in review) ---------- */
-const EARTH_KM = 40075;       // รอบโลก
 
 function renderYear(list) {
   const years = [...new Set(list.filter((r) => r.d).map((r) => r.d.getFullYear()))].sort((a, b) => b - a);
@@ -819,15 +818,15 @@ function renderYear(list) {
   const mix = Object.entries(typeCount).sort((a, b) => b[1] - a[1]);
   const anim = state.animate && !reduceMotion;
   const tank = tankLiters();
-  const earthPct = (dist / EARTH_KM) * 100;
   const tanks = liters / tank;
 
-  // ภาพประกอบ: ถนนคดเคี้ยวพร้อมรถ (ความยาวเส้นทางที่วาดแล้วตามสัดส่วนรอบโลก)
-  const road = `<svg class="yr-road" viewBox="0 0 320 90" preserveAspectRatio="none">
-      <path class="road-bg" d="M-10 70 C60 70 70 20 140 24 S230 78 330 30"/>
-      <path class="road-dash" d="M-10 70 C60 70 70 20 140 24 S230 78 330 30"/>
-      <circle class="road-car" r="7"><animateMotion dur="5s" repeatCount="indefinite" path="M-10 70 C60 70 70 20 140 24 S230 78 330 30"/></circle>
-    </svg>`;
+  // เลขไมล์แบบหน้าปัด: แต่ละหลักเป็นแถบ 0–9 ที่หมุนไปยังตัวเลขจริง
+  const odoDigits = String(Math.max(0, Math.round(dist))).padStart(6, '0').split('');
+  const firstReal = odoDigits.findIndex((c) => c !== '0');
+  const odometer = `<div class="odo-meter">${odoDigits.map((c, i) => `
+      <span class="odo-digit${i < firstReal || firstReal < 0 ? ' lead' : ''}${i === odoDigits.length - 1 ? ' last' : ''}">
+        <span class="odo-strip" style="--d:${anim ? 0 : c};--i:${i}" data-d="${c}">${'0123456789'.split('').map((n) => `<b>${n}</b>`).join('')}</span>
+      </span>`).join('')}<span class="odo-unit">${esc(t('unit.km'))}</span></div>`;
   // หยดน้ำมันเติมตามจำนวนถัง (เศษของถังสุดท้าย)
   const dropFill = 100 - Math.min(100, ((tanks % 1) || 1) * 100);
   const drop = `<svg class="yr-drop" viewBox="0 0 40 52"><defs><clipPath id="dropClip"><path d="M20 2C12 14 4 24 4 33a16 16 0 0 0 32 0C36 24 28 14 20 2z"/></clipPath></defs>
@@ -849,11 +848,10 @@ function renderYear(list) {
       <b class="yr-year">${yLabel(y)}</b>
     </div>
     <div class="bento${anim ? ' animate' : ''}">
-      <section class="b-tile b-wide b-accent" style="--i:0">
+      <section class="b-tile b-wide b-odo" style="--i:0">
         <span class="b-label">${esc(t('yr.distance'))}</span>
-        <b class="b-big">${fmtInt(dist)}<small> ${esc(t('unit.km'))}</small></b>
-        ${road}
-        <span class="b-note">${esc(t('yr.funEarth', { n: fmt(earthPct, 0) }))}</span>
+        ${odometer}
+        <span class="b-note">${fmtInt(startKm)} → ${fmtInt(inYear[inYear.length - 1].mileage)} ${esc(t('unit.km'))}</span>
       </section>
       <section class="b-tile" style="--i:1">
         <span class="b-label">${esc(t('yr.fills'))}</span>
@@ -892,6 +890,12 @@ function renderYear(list) {
         <span class="b-note">${esc(t('yr.perMonth', { n: fmtInt((fuel + other) / (y === new Date().getFullYear() ? new Date().getMonth() + 1 : 12)) }))}</span>
       </section>
     </div>`;
+  if (anim) {
+    const roll = () => $$('.odo-strip', $('#yearBody')).forEach((el) => el.style.setProperty('--d', el.dataset.d));
+    // ถ้าหน้าไม่ได้แสดงอยู่ requestAnimationFrame จะไม่ทำงาน จึงใส่ค่าจริงทันที
+    if (document.visibilityState === 'hidden') roll();
+    else requestAnimationFrame(() => requestAnimationFrame(roll));
+  }
   const cy = new Date().getFullYear();
   const cur = list.filter((r) => r.d && r.d.getFullYear() === cy);
   $('#mYear').textContent = cur.length ? t('menu.year', { y: yLabel(cy), n: fmtInt(sumBy(cur, (r) => r.price)) }) : '';
