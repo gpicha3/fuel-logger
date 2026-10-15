@@ -1172,23 +1172,24 @@ function initForm() {
   const last = lastEntry();
   form.date.value = isoToday();
   selectedType = last ? last.type : OIL_TYPES[0];
-  $('#typeChips').innerHTML = OIL_TYPES.map((ty) => `<button type="button" class="chip ${typeClass(ty)}" data-type="${esc(ty)}">${esc(ty)}</button>`).join('');
+  $('#typeChips').innerHTML = OIL_TYPES.map((ty) => `<button type="button" class="type-pill ${typeClass(ty)}" role="radio" data-type="${esc(ty)}"><i></i>${esc(ty)}</button>`).join('');
   setType(selectedType);
   if (state.setup && !(ptt && Date.now() - ptt.at < 3600e3)) {
     $('#priceHint').textContent = t('form.pttLoading');
     loadPtt().then(() => { if (topSheet()?.id === 'form') setType(selectedType); });
   }
-  setTimeout(() => form.mileage.focus(), 450);
+  fitAmount();
+  setTimeout(() => form.price.focus(), 450);
 }
 
 function setType(type) {
   selectedType = type;
-  $$('.chip').forEach((c) => c.classList.toggle('active', c.dataset.type === type));
+  $$('#typeChips .type-pill').forEach((c) => { const on = c.dataset.type === type; c.classList.toggle('active', on); c.setAttribute('aria-checked', on); });
   const pp = pttPrice(type);
   const p = pp || lastPriceFor(type);
   form.oilPrice.placeholder = p ? fmt(p) : '0.00';
   if (p && !form.oilPrice.dataset.touched) form.oilPrice.value = p.toFixed(2);
-  $('#priceHint').textContent = pp ? t('form.pttPrice', { p: fmt(pp), date: fmtDate(parseDate(ptt.date)) }) : '';
+  $('#priceHint').textContent = pp ? t('form.pttShort', { date: fmtDate(parseDate(ptt.date)) }) : '';
   updateForm();
 }
 
@@ -1222,24 +1223,26 @@ function updateForm() {
   $('#saveBtn').disabled = !valid;
 
   const liters = v.price / v.oilPrice;
-  let html = '';
-  if (Number.isFinite(liters) && liters > 0) {
-    html += `<span class="muted">${esc(t('form.liters'))}</span><b>${fmt(liters)} ${esc(t('unit.liters'))}</b>`;
-    if (last && Number.isFinite(v.mileage) && v.mileage > last.mileage) {
-      const dist = v.mileage - last.mileage;
-      html += `<span class="muted">${esc(t('form.distance'))}</span><b>${fmtInt(dist)} ${esc(t('unit.km'))}</b>`;
-      html += `<span class="muted">${esc(t('form.rate'))}</span><b>${fmt(dist / liters)} ${esc(t('unit.kml.short'))}</b>`;
-    }
-  }
-  $('#preview').innerHTML = html;
+  const okL = Number.isFinite(liters) && liters > 0;
+  const dist = last && Number.isFinite(v.mileage) && v.mileage > last.mileage ? v.mileage - last.mileage : null;
+  const cell = (val, unit, label) => `<div class="live-cell${val === '–' ? ' dim' : ''}"><b>${val}</b><small>${esc(unit)}</small><span>${esc(label)}</span></div>`;
+  $('#preview').innerHTML = cell(okL ? fmt(liters) : '–', t('unit.liters'), t('form.liters'))
+    + cell(dist != null ? fmtInt(dist) : '–', t('unit.km'), t('form.distance'))
+    + cell(okL && dist != null ? fmt(dist / liters) : '–', t('unit.kml.short'), t('form.rate'));
 }
 
+// ช่องยอดเงินตัวใหญ่: ความกว้างตามจำนวนตัวอักษร ให้ ฿ ชิดตัวเลข
+function fitAmount() {
+  const el = form.price;
+  el.style.width = `${Math.max(1, (el.value || el.placeholder).length) + 0.6}ch`;
+}
 form.addEventListener('input', (e) => {
   if (e.target.name === 'oilPrice') e.target.dataset.touched = '1';
+  if (e.target.name === 'price') fitAmount();
   updateForm();
 });
 $('#typeChips').addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
+  const chip = e.target.closest('.type-pill');
   if (chip) setType(chip.dataset.type);
 });
 form.addEventListener('reset', () => { delete form.oilPrice.dataset.touched; });

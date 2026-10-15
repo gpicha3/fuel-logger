@@ -538,3 +538,91 @@ input[type="range"]:focus { outline: none; }
 .odo-chip b { font-size: 15px; font-variant-numeric: tabular-nums; }
 .odo-chip small { font-size: 11px; color: var(--muted); }
 #odoInput { font-size: 28px; font-weight: 600; text-align: center; letter-spacing: .02em; }
+
+/* ---------- ฟอร์มเติมน้ำมัน (ดีไซน์ใหม่) ---------- */
+.sheet.fill-sheet {
+  top: max(env(safe-area-inset-top), 28px); border-radius: 26px 26px 0 0; background: var(--surface);
+  padding: 8px 18px calc(18px + env(safe-area-inset-bottom)); box-shadow: 0 -10px 40px rgba(0,0,0,.35);
+}
+.fill-sheet ~ .backdrop { display: none; }
+.fill-top { position: sticky; top: -8px; z-index: 2; background: var(--surface); padding-top: 4px; }
+.fill-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 6px; }
+.fill-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
+.close-x { width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; }
+.close-x svg { width: 18px; height: 18px; stroke-width: 2.6; }
+.fill-form { display: flex; flex-direction: column; gap: 18px; padding-top: 6px; }
+.fill-sheet.opening .fill-form > * { animation: rise .45s var(--ease-out) both; }
+.fill-sheet.opening .fill-form > :nth-child(2) { animation-delay: .05s; }
+.fill-sheet.opening .fill-form > :nth-child(3) { animation-delay: .1s; }
+.fill-sheet.opening .fill-form > :nth-child(n+4) { animation-delay: .15s; }
+
+.type-pills { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -18px; padding: 2px 18px; }
+.type-pills::-webkit-scrollbar { display: none; }
+.type-pill {
+  flex: none; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px;
+  border: 1px solid var(--border); background: transparent; font-weight: 600; font-size: 15px; color: var(--muted);
+  transition: background-color .25s, color .25s, border-color .25s, transform .25s var(--ease-spring);
+}
+.type-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--t); }
+.type-pill:active { transform: scale(.94); }
+.type-pill.active { background: color-mix(in srgb, var(--t) 18%, transparent); border-color: var(--t); color: var(--text); }
+
+.amount { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0 2px; }
+.amount-label { font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+.amount-input { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
+.amount-input .currency { font-size: 34px; font-weight: 300; color: var(--muted); }
+.amount-input input {
+  width: 1.6ch; max-width: 8ch; border: 0; background: none; padding: 0; min-height: 0; text-align: left;
+  font-size: 60px; font-weight: 300; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: var(--text);
+}
+.amount-input input:focus { outline: none; }
+.amount-input input::placeholder { color: var(--ring); }
+
+.fill-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fill-card {
+  display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 18px; background: var(--surface-2);
+  border: 1.5px solid transparent; transition: border-color .2s;
+}
+.fill-card:focus-within { border-color: var(--accent); }
+.fc-label { font-size: 12px; color: var(--muted); }
+.fill-card input {
+  border: 0; background: none; padding: 0; min-height: 0; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.fill-card input:focus { outline: none; }
+.fill-card .hint { font-size: 12px; }
+
+.date-pill {
+  align-self: center; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px;
+  background: var(--surface-2); color: var(--muted);
+}
+.date-pill svg { width: 16px; height: 16px; }
+.date-pill input { border: 0; background: none; padding: 0; min-height: 0; font-size: 15px; color: var(--text); width: auto; }
+.date-pill input:focus { outline: none; }
+
+.live { display: grid; grid-template-columns: repeat(3, 1fr); border-radius: 18px; border: 1px solid var(--border); overflow: hidden; }
+.live-cell { display: flex; flex-direction: column; align-items: center; padding: 12px 6px; border-left: 1px solid var(--border); transition: opacity .25s; }
+.live-cell:first-child { border-left: 0; }
+.live-cell b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.live-cell small { font-size: 11px; color: var(--muted); margin-top: -2px; }
+.live-cell span { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.live-cell.dim { opacity: .45; }
+
+.save-btn {
+  height: 56px; border-radius: 999px; border: 0; font-size: 18px; font-weight: 700; letter-spacing: .02em;
+  background: var(--accent); color: var(--on-accent); box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: transform .2s var(--ease-spring), opacity .2s, box-shadow .2s;
+}
+.save-btn:active:not(:disabled) { transform: scale(.97); }
+.save-btn:disabled { opacity: .35; box-shadow: none; }
+
+/* ---------- ไอคอนแบบทึบ (สไตล์ Tesla) ---------- */
+svg.ic { fill: currentColor; stroke: none; }
+.menu-row > svg.ic:first-child { width: 26px; height: 26px; }
+.ring-btn svg.ic { width: 28px; height: 28px; }
+.hero-icon svg.ic { width: 30px; height: 30px; }
+.icon-btn svg.ic { width: 24px; height: 24px; }
+.odo-chip svg.ic { width: 20px; height: 20px; }
+.odo-chip svg.ic.pen { width: 14px; height: 14px; color: var(--muted); }
+.ring-btn { background: color-mix(in srgb, var(--text) 6%, transparent); border-color: transparent; }
+
+.date-pill input::-webkit-calendar-picker-indicator { display: none; }
