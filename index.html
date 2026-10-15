@@ -344,78 +344,82 @@
   <!-- ตั้งค่า -->
   <section id="settings" class="sheet sheet-push" hidden>
     <header class="topbar">
-      <button class="icon-btn" data-close data-i18n-aria="back">
-        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
-      </button>
+      <button class="icon-btn" data-close data-i18n-aria="back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
       <h1 data-i18n="settings"></h1>
       <span class="spacer"></span>
     </header>
-    <div class="form">
-      <h3 class="section-title" data-i18n="s.car"></h3>
-      <label class="field">
-        <span data-i18n="s.carName"></span>
-        <input type="text" id="carNameInput" maxlength="30" autocomplete="off" placeholder="Yaris ATIV">
-      </label>
-
-      <h3 class="section-title" data-i18n="s.look"></h3>
-      <div class="field">
-        <span data-i18n="s.mode"></span>
-        <div class="segmented wide" id="themeSeg">
-          <button type="button" data-theme-mode="auto" data-i18n="s.mode.auto"></button>
-          <button type="button" data-theme-mode="light" data-i18n="s.mode.light"></button>
-          <button type="button" data-theme-mode="dark" data-i18n="s.mode.dark"></button>
-        </div>
-      </div>
-      <div class="field">
-        <span data-i18n="s.accent"></span>
-        <div class="swatches" id="swatches"></div>
-      </div>
-      <div class="wheel-picker" id="huePicker" hidden>
-        <div class="hue-ring" id="hueRing">
-          <div class="hue-knob" id="hueKnob"></div>
-          <div class="hue-preview" id="huePreview"></div>
-        </div>
-        <p class="hint" data-i18n="s.hue"></p>
-        <label class="field slider-field">
-          <span data-i18n="s.saturation"></span>
-          <input type="range" id="satRange" min="25" max="100" step="1">
+    <div class="set-page">
+      <section class="set-profile">
+        <img src="img/car.png" alt="" class="set-car">
+        <label class="set-name">
+          <input type="text" id="carNameInput" maxlength="30" autocomplete="off" placeholder="Yaris ATIV" data-i18n-aria="s.carName">
+          <small><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M15.2 3.6a2 2 0 0 1 2.8 0l2.4 2.4a2 2 0 0 1 0 2.8L9 20.2l-5.6 1.2a.8.8 0 0 1-1-1L3.6 15z"/></svg><span data-i18n="s.carNameHint"></span></small>
         </label>
-      </div>
-      <div class="field">
-        <span data-i18n="s.language"></span>
-        <div class="segmented wide" id="langSeg">
-          <button type="button" data-lang="th">ไทย</button>
-          <button type="button" data-lang="en">English</button>
-        </div>
-      </div>
+      </section>
 
-      <hr class="divider">
-      <h3 class="section-title" data-i18n="s.sheet"></h3>
-      <div class="conn-card" id="connCard">
-        <div class="conn-status">
-          <span class="conn-dot"></span>
-          <div>
-            <div class="conn-title" id="connTitle"></div>
-            <div class="conn-url" id="connUrl"></div>
+      <h3 class="set-title" data-i18n="s.look"></h3>
+      <section class="set-group">
+        <div class="set-row stack">
+          <div class="set-row-head"><span class="set-ic" style="--c:#5e5ce6"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></span><b data-i18n="s.mode"></b></div>
+          <div class="segmented wide" id="themeSeg">
+            <button type="button" data-theme-mode="auto" data-i18n="s.mode.auto"></button>
+            <button type="button" data-theme-mode="light" data-i18n="s.mode.light"></button>
+            <button type="button" data-theme-mode="dark" data-i18n="s.mode.dark"></button>
           </div>
         </div>
-        <div class="form-actions">
-          <button type="button" class="btn ghost" id="editLinkBtn" data-i18n="s.editLink"></button>
-          <button type="button" class="btn danger" id="clearSetupBtn" data-i18n="s.disconnect"></button>
+        <div class="set-row stack">
+          <div class="set-row-head"><span class="set-ic" style="--c:#ff375f"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 22 10.8C22 5.9 17.5 2 12 2zM6.5 13a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM9.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM14.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zM17.5 13a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg></span><b data-i18n="s.accent"></b></div>
+          <div class="swatches" id="swatches"></div>
+          <div class="wheel-picker" id="huePicker" hidden>
+            <div class="hue-ring" id="hueRing">
+              <div class="hue-knob" id="hueKnob"></div>
+              <div class="hue-preview" id="huePreview"></div>
+            </div>
+            <p class="hint" data-i18n="s.hue"></p>
+            <label class="field slider-field">
+              <span data-i18n="s.saturation"></span>
+              <input type="range" id="satRange" min="25" max="100" step="1">
+            </label>
+          </div>
         </div>
-      </div>
-      <div id="setupEditor">
-        <label class="field">
-          <span data-i18n="s.setupCode"></span>
-          <textarea id="setupInput" rows="4" placeholder="https://script.google.com/macros/s/…/exec?k=…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
-          <small class="hint" data-i18n="s.setupHint"></small>
-        </label>
-        <p id="settingsStatus" class="hint"></p>
-        <div class="form-actions">
-          <button type="button" class="btn ghost" id="cancelEditBtn" data-i18n="cancel"></button>
-          <button type="button" class="btn primary" id="saveSetupBtn" data-i18n="s.connect"></button>
+        <div class="set-row stack">
+          <div class="set-row-head"><span class="set-ic" style="--c:#0a84ff"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-9l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg></span><b data-i18n="s.language"></b></div>
+          <div class="segmented wide" id="langSeg">
+            <button type="button" data-lang="th">ไทย</button>
+            <button type="button" data-lang="en">English</button>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <h3 class="set-title" data-i18n="s.sheet"></h3>
+      <section class="set-group">
+        <div class="set-row" id="connCard">
+          <span class="set-ic" style="--c:#30d158"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM5 8v4h6V8zM13 8v4h6V8zM5 14v5h6v-5zM13 14v5h6v-5z"/></svg></span>
+          <div class="set-text">
+            <b id="connTitle"></b>
+            <small id="connUrl"></small>
+          </div>
+          <span class="conn-dot"></span>
+        </div>
+        <div class="set-actions" id="connActions">
+          <button type="button" class="set-btn" id="editLinkBtn" data-i18n="s.editLink"></button>
+          <button type="button" class="set-btn danger" id="clearSetupBtn" data-i18n="s.disconnect"></button>
+        </div>
+        <div class="set-row stack" id="setupEditor">
+          <label class="field">
+            <span data-i18n="s.setupCode"></span>
+            <textarea id="setupInput" rows="4" placeholder="https://script.google.com/macros/s/…/exec?k=…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+            <small class="hint" data-i18n="s.setupHint"></small>
+          </label>
+          <p id="settingsStatus" class="hint"></p>
+          <div class="form-actions">
+            <button type="button" class="btn ghost" id="cancelEditBtn" data-i18n="cancel"></button>
+            <button type="button" class="btn primary" id="saveSetupBtn" data-i18n="s.connect"></button>
+          </div>
+        </div>
+      </section>
+
+      <p class="set-foot">Fuel Logger · <span id="appVersion"></span></p>
     </div>
   </section>
 

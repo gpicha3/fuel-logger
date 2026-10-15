@@ -707,7 +707,7 @@ function renderLoan() {
     : t('loan.done');
 
   const years = new Map();
-  all.forEach((r) => {
+  rows.forEach((r) => {
     const y = r.d.getFullYear();
     if (!years.has(y)) years.set(y, []);
     years.get(y).push(r);
@@ -787,7 +787,6 @@ function renderCompare(list) {
 }
 
 /* ---------- 4. สรุปรายปี (แบบ Year in review) ---------- */
-const BKK_CNM_KM = 690;       // กรุงเทพฯ–เชียงใหม่ ทางถนนโดยประมาณ
 const EARTH_KM = 40075;       // รอบโลก
 
 function renderYear(list) {
@@ -820,7 +819,6 @@ function renderYear(list) {
   const mix = Object.entries(typeCount).sort((a, b) => b[1] - a[1]);
   const anim = state.animate && !reduceMotion;
   const tank = tankLiters();
-  const trips = dist / BKK_CNM_KM;
   const earthPct = (dist / EARTH_KM) * 100;
   const tanks = liters / tank;
 
@@ -855,7 +853,7 @@ function renderYear(list) {
         <span class="b-label">${esc(t('yr.distance'))}</span>
         <b class="b-big">${fmtInt(dist)}<small> ${esc(t('unit.km'))}</small></b>
         ${road}
-        <span class="b-note">${esc(t('yr.funTrips', { n: fmt(trips, 1) }))} · ${esc(t('yr.funEarth', { n: fmt(earthPct, 0) }))}</span>
+        <span class="b-note">${esc(t('yr.funEarth', { n: fmt(earthPct, 0) }))}</span>
       </section>
       <section class="b-tile" style="--i:1">
         <span class="b-label">${esc(t('yr.fills'))}</span>
@@ -906,7 +904,14 @@ $('#yearSeg').addEventListener('click', (e) => {
 });
 
 /* ---------- 6–8. ดูแลรถ: เช็กระยะ, ภาษี/ประกัน/พ.ร.บ., ค่าใช้จ่ายอื่น ---------- */
+const ICON = {"wrench": "M21.7 6.3a1 1 0 0 0-1.6-.3l-2.7 2.7-2.1-.5-.5-2.1 2.7-2.7a1 1 0 0 0-.3-1.6 6 6 0 0 0-7.9 7.6L2.6 16.1a2.5 2.5 0 0 0 3.5 3.5l6.7-6.7a6 6 0 0 0 7.6-7.9z", "doc": "M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM13 3.5V8h4.5zM8 12v1.5h8V12zM8 16v1.5h6V16z", "shield": "M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5z", "idcard": "M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM7 8v2h10V8zM7 12v2h10v-2zM7 16v2h6v-2z", "gear": "M19.90 12.00 L22.15 12.96 L21.75 15.00 L19.30 15.02 L18.57 16.39 L17.59 17.59 L18.50 19.86 L16.77 21.01 L15.02 19.30 L13.54 19.75 L12.00 19.90 L11.04 22.15 L9.00 21.75 L8.98 19.30 L7.61 18.57 L6.41 17.59 L4.14 18.50 L2.99 16.77 L4.70 15.02 L4.25 13.54 L4.10 12.00 L1.85 11.04 L2.25 9.00 L4.70 8.98 L5.43 7.61 L6.41 6.41 L5.50 4.14 L7.23 2.99 L8.98 4.70 L10.46 4.25 L12.00 4.10 L12.96 1.85 L15.00 2.25 L15.02 4.70 L16.39 5.43 L17.59 6.41 L19.86 5.50 L21.01 7.23 L19.30 8.98 L19.75 10.46Z M15.2 12 a3.2 3.2 0 1 0 -6.4 0 a3.2 3.2 0 1 0 6.4 0z", "drop": "M12 2.5c-3.5 5-7 8.8-7 12.5a7 7 0 0 0 14 0c0-3.7-3.5-7.5-7-12.5z", "toll": "M3 21V8a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v13zM10 9.5h11.5v3H10zM2 21h8v1.5H2z", "parking": "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 7v10h2.2v-3.4h2.3a3.3 3.3 0 0 0 0-6.6zM11.2 9h2.1a1.3 1.3 0 0 1 0 2.6h-2.1z", "dots": "M5 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM19 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z", "fuel": "M4 3.5A1.5 1.5 0 0 1 5.5 2h8A1.5 1.5 0 0 1 15 3.5V20h.5a1 1 0 1 1 0 2h-12a1 1 0 1 1 0-2H4zM6.5 4.5v5h6v-5zM16.3 5.3a1 1 0 0 1 1.4 0l2.7 2.7c.4.4.6.9.6 1.4V17a2.5 2.5 0 0 1-5 0v-3.5h1.5V17a1 1 0 0 0 2 0v-5.5h-.6A1.6 1.6 0 0 1 17.3 10V8.4l-1-1a1 1 0 0 1 0-1.4z", "plus": "M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z"};
+const svgIc = (k) => `<svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="${ICON[k]}"/></svg>`;
 const EXP_CATS = ['Service', 'Repair', 'Wash', 'Toll', 'Parking', 'Other'];
+const CAT_STYLE = {
+  Service: ['wrench', '#ff9f0a'], Repair: ['gear', '#ff453a'], Wash: ['drop', '#0a84ff'],
+  Toll: ['toll', '#30d158'], Parking: ['parking', '#5e5ce6'], Other: ['dots', '#8e8e93'],
+};
+const REM_STYLE = { service: ['wrench', '#ff9f0a'], taxDue: ['doc', '#0a84ff'], insuranceDue: ['shield', '#30d158'], actDue: ['idcard', '#bf5af2'] };
 const RENEWALS = [['taxDue', 'rem.tax'], ['insuranceDue', 'rem.insurance'], ['actDue', 'rem.act']];
 const DEFAULT_INTERVAL = 10000;
 const DEFAULT_MONTHS = 6;
@@ -975,23 +980,29 @@ function reminders(list) {
     const parts = [nextKm != null ? t('rem.atKmShort', { km: fmtInt(nextKm) }) : '', nextDate ? fmtDate(nextDate) : ''].filter(Boolean);
     if (upcoming) {
       const days = Math.round((upcoming.d - today) / DAY);
-      out.push({ key: 'service', icon: '🔧', label: t('rem.serviceAppt'), value: `${fmtDate(upcoming.d)} · ${t('rem.thenNext', { next: parts.join(t('rem.or')) })}`,
-        due: days === 0 ? t('rem.today') : t('rem.leftDays', { n: days }), urgent: days <= 7 });
+      out.push({ key: 'service', label: t('rem.serviceAppt'), value: `${fmtDate(upcoming.d)} · ${t('rem.thenNext', { next: parts.join(t('rem.or')) })}`,
+        due: days === 0 ? t('rem.today') : t('rem.leftDays', { n: days }), urgent: days <= 7,
+        big: String(Math.max(0, days)), unit: t('unit.days'), pct: 1 - Math.min(1, days / 30) });
     } else {
       const due = byKm
         ? (leftKm <= 0 ? t('rem.overdueKm', { n: fmtInt(-leftKm) }) : t('rem.leftKm', { n: fmtInt(leftKm) }))
         : (leftDays < 0 ? t('rem.overdueDays', { n: -leftDays }) : leftDays === 0 ? t('rem.today') : t('rem.leftDays', { n: leftDays }));
-      out.push({ key: 'service', icon: '🔧', label: t('rem.service'), value: t('rem.nextAt', { when: parts.join(t('rem.or')) }),
-        due, urgent: (leftKm != null && leftKm < 1000) || (leftDays != null && leftDays <= 30) });
+      const pctKm = leftKm != null ? 1 - leftKm / interval : 0;
+      const pctDays = leftDays != null ? 1 - leftDays / (months * 30.4) : 0;
+      out.push({ key: 'service', label: t('rem.service'), value: t('rem.nextAt', { when: parts.join(t('rem.or')) }),
+        due, urgent: (leftKm != null && leftKm < 1000) || (leftDays != null && leftDays <= 30),
+        big: byKm ? fmtInt(Math.abs(leftKm)) : String(Math.abs(leftDays)), unit: byKm ? t('unit.km') : t('unit.days'),
+        overdue: byKm ? leftKm <= 0 : leftDays < 0, pct: Math.max(pctKm, pctDays) });
     }
   } else {
-    out.push({ key: 'service', icon: '🔧', label: t('rem.service'), value: t('rem.notSet'), due: '', urgent: false });
+    out.push({ key: 'service', label: t('rem.service'), value: t('rem.notSet'), due: '', urgent: false });
   }
   for (const [k, labelKey] of RENEWALS) {
     const d = parseDate(st[k]);
-    if (!d) { out.push({ key: k, icon: '📄', label: t(labelKey), value: t('rem.notSet'), due: '', urgent: false }); continue; }
+    if (!d) { out.push({ key: k, label: t(labelKey), value: t('rem.notSet'), due: '', urgent: false }); continue; }
     const days = Math.round((d - today) / DAY);
-    out.push({ key: k, icon: '📄', label: t(labelKey), value: fmtDate(d), urgent: days <= 30, renew: days <= 30,
+    out.push({ key: k, label: t(labelKey), value: fmtDate(d), urgent: days <= 30, renew: days <= 30,
+      big: String(Math.abs(days)), unit: t('unit.days'), overdue: days < 0, pct: 1 - Math.min(1, Math.max(0, days) / 365),
       due: days < 0 ? t('rem.overdueDays', { n: -days }) : days === 0 ? t('rem.today') : t('rem.leftDays', { n: days }) });
   }
   return out;
@@ -1015,36 +1026,48 @@ function renderCare(list) {
   const exps = [...state.car.expenses].sort((a, b) => (a.date < b.date ? 1 : -1));
   const yearExp = exps.filter((x) => x.date.startsWith(String(y)));
   const fuelYear = sumBy(list.filter((r) => r.d && r.d.getFullYear() === y), (r) => r.price);
-  const otherYear = sumBy(yearExp, (x) => x.amount);
-  const byCat = EXP_CATS.map((c) => [c, sumBy(yearExp.filter((x) => x.category === c), (x) => x.amount)]).filter(([, v]) => v > 0);
-  const maxCat = Math.max(1, fuelYear, ...byCat.map(([, v]) => v));
+  const parts = [['__fuel', fuelYear, 'var(--accent)'], ...EXP_CATS.map((c) => [c, sumBy(yearExp.filter((x) => x.category === c), (x) => x.amount), CAT_STYLE[c][1]])].filter(([, v]) => v > 0);
+  const grand = sumBy(parts, ([, v]) => v);
   const anim = state.animate && !reduceMotion;
 
+  const tile = (r, i) => {
+    const [ik, color] = REM_STYLE[r.key] || ['doc', '#8e8e93'];
+    const pct = Math.max(0, Math.min(1, r.pct || 0));
+    return `
+      <div class="rem-tile${r.urgent ? ' urgent' : ''}${r.big == null ? ' unset' : ''}${anim ? ' enter' : ''}" style="--c:${color};--i:${i}">
+        <div class="rt-head"><span class="set-ic">${svgIc(ik)}</span><b>${esc(r.label)}</b></div>
+        ${r.big != null ? `<div class="rt-big">${r.overdue ? '−' : ''}${esc(r.big)}<small> ${esc(r.unit)}</small></div>` : `<div class="rt-big none">–</div>`}
+        <div class="rt-sub">${esc(r.big != null ? (r.overdue ? r.due : r.value) : t('rem.notSet'))}</div>
+        <div class="rt-bar"><i style="width:${pct * 100}%"></i></div>
+        ${r.renew ? `<button class="rt-renew" data-renew="${r.key}">${esc(t('rem.renewed'))}</button>` : ''}
+      </div>`;
+  };
+
   body.innerHTML = `
-    <section class="card">
-      <div class="card-head"><h2>${esc(t('care.reminders'))}</h2><button class="text-link" data-open="careSettings">${esc(t('rem.edit'))}</button></div>
-      ${rem.map((r) => `
-        <div class="rem-row${r.urgent ? ' urgent' : ''}">
-          <span class="rem-icon">${r.icon}</span>
-          <div class="rem-text"><b>${esc(r.label)}</b><small>${esc(r.value)}</small></div>
-          <div class="rem-due">${esc(r.due)}${r.renew ? `<button class="text-link" data-renew="${r.key}">${esc(t('rem.renewed'))}</button>` : ''}</div>
-        </div>`).join('')}
+    <div class="care-head"><h2>${esc(t('care.reminders'))}</h2><button class="text-link" data-open="careSettings">${esc(t('rem.edit'))}</button></div>
+    <div class="rem-grid">${rem.map(tile).join('')}</div>
+
+    <section class="cost-card">
+      <div class="cost-top"><span>${esc(t('care.costYear', { y: LANG === 'th' ? y + 543 : y }))}</span><b>฿${fmtInt(grand)}</b></div>
+      <div class="cost-bar">${parts.map(([, v, c]) => `<i style="flex:${v};background:${c}"></i>`).join('')}</div>
+      <div class="cost-legend">${parts.map(([k, v, c]) => `<span style="--c:${c}"><em>${esc(k === '__fuel' ? t('care.fuel') : t(`cat.${k}`))}</em><b>฿${fmtInt(v)}</b></span>`).join('')}</div>
     </section>
-    <section class="card">
-      <div class="card-head"><h2>${esc(t('care.costYear', { y: LANG === 'th' ? y + 543 : y }))}</h2><b>฿${fmtInt(fuelYear + otherYear)}</b></div>
-      ${[['__fuel', fuelYear], ...byCat].map(([c, v]) => `
-        <div class="cat-row"><span>${esc(c === '__fuel' ? t('care.fuel') : t(`cat.${c}`))}</span><b>฿${fmtInt(v)}</b>
-          <div class="cmp-bar"><i style="width:${(v / maxCat) * 100}%"></i></div></div>`).join('')}
-    </section>
-    <section class="card">
-      <div class="card-head"><h2>${esc(t('care.expenses'))}</h2><button class="text-link" data-open="expenseForm">+ ${esc(t('care.add'))}</button></div>
-      <ul class="history" id="expList">${exps.map((x, i) => `
-        <li data-exp="${x.row}"${anim && i < 12 ? ` class="enter" style="--i:${i}"` : ''}>
-          <div class="h-main">${fmtDate(parseDate(x.date))}<span class="badge">${esc(t(`cat.${x.category}`))}</span></div>
-          <div class="h-rate">฿${fmtInt(x.amount)}</div>
-          <div class="h-sub">${x.mileage ? `${fmtInt(x.mileage)} ${esc(t('unit.km'))}` : ''}${x.note ? `${x.mileage ? ' · ' : ''}${esc(x.note)}` : ''}</div><div></div>
-        </li>`).join('') || `<li><div class="h-sub">${esc(t('care.empty'))}</div></li>`}</ul>
-    </section>`;
+
+    <div class="care-head"><h2>${esc(t('care.expenses'))}</h2>
+      <button class="add-pill" data-open="expenseForm">${svgIc('plus')}<span>${esc(t('care.add'))}</span></button></div>
+    <ul class="fill-list" id="expList">${exps.map((x, i) => {
+      const [ik, color] = CAT_STYLE[x.category] || CAT_STYLE.Other;
+      const d = parseDate(x.date);
+      return `
+      <li class="fill-item exp-item${anim && i < 12 ? ' enter' : ''}" data-exp="${x.row}" style="--t:${color};--i:${i}">
+        <span class="fi-icon">${svgIc(ik)}</span>
+        <span class="fi-date"><b>${d ? d.getDate() : '–'}</b><small>${d ? mon(d) : ''}</small></span>
+        <span class="fi-main">
+          <span class="fi-top"><b class="exp-cat">${esc(t(`cat.${x.category}`))}</b><b class="fi-amount">฿${fmtInt(x.amount)}</b></span>
+          <span class="fi-chips">${x.mileage ? `<span>${fmtInt(x.mileage)} ${esc(t('unit.km'))}</span>` : ''}${x.note ? `<span>${esc(x.note)}</span>` : ''}${d && d > new Date() ? `<span class="rate up">${esc(t('care.upcoming'))}</span>` : ''}</span>
+        </span>
+      </li>`;
+    }).join('') || `<li class="empty-state">${esc(t('care.empty'))}</li>`}</ul>`;
 }
 
 $('#careBody').addEventListener('click', async (e) => {
@@ -1142,10 +1165,10 @@ function renderAlerts(list) {
   const lastRated = rated[rated.length - 1];
   if (lastRated && lastRated.low) {
     const base = sumBy(rated, (r) => r.rate) / rated.length;
-    items.push({ icon: '⚠️', text: t('alert.low', { pct: Math.round((1 - lastRated.rate / base) * 100) }), open: 'economy' });
+    items.push({ ic: null, text: t('alert.low', { pct: Math.round((1 - lastRated.rate / base) * 100) }), open: 'economy' });
   }
-  for (const r of reminders(list)) if (r.urgent && r.due) items.push({ icon: r.icon, text: `${r.label} · ${r.due}`, open: 'care' });
-  $('#alerts').innerHTML = items.map((a) => `<button class="alert" data-open="${a.open}"><span>${a.icon}</span><span>${esc(a.text)}</span></button>`).join('');
+  for (const r of reminders(list)) if (r.urgent && r.due) items.push({ ic: (REM_STYLE[r.key] || ['doc'])[0], text: `${r.label} · ${r.due}`, open: 'care' });
+  $('#alerts').innerHTML = items.map((a) => `<button class="alert" data-open="${a.open}"><span class="alert-ic">${a.ic ? svgIc(a.ic) : '!'}</span><span>${esc(a.text)}</span></button>`).join('');
 }
 
 
@@ -1575,6 +1598,7 @@ $('#langSeg').addEventListener('click', (e) => {
 function renderConnection(editing = false) {
   const connected = !!state.setup;
   $('#connCard').hidden = !connected || editing;
+  $('#connActions').hidden = !connected || editing;
   $('#setupEditor').hidden = connected && !editing;
   $('#cancelEditBtn').hidden = !connected;
   if (connected) {
@@ -1587,8 +1611,10 @@ function renderConnection(editing = false) {
   $('#settingsStatus').className = 'hint';
 }
 
+const APP_VERSION = '2026.10.15';
 function initSettings() {
   renderThemeControls();
+  $('#appVersion').textContent = APP_VERSION;
   $('#carNameInput').value = carName();
   $('#huePicker').hidden = loadTheme().accent !== 'custom';
   renderConnection();
