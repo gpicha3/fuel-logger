@@ -609,3 +609,160 @@ svg.ic { fill: currentColor; stroke: none; }
 
 /* รถค่อย ๆ ปรากฏตอนเปิดแอป (ไม่มีรถวิ่ง) */
 .car-stage .car { animation: fade-in .8s ease-out both; }
+
+/* ---------- ประวัติการเติม (ดีไซน์ใหม่) ---------- */
+.hs-card {
+  border-radius: 22px; padding: 16px; margin-bottom: 16px; color: #fff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 85%, #000), color-mix(in srgb, var(--accent) 35%, #000));
+}
+.hs-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.hs-stats div { display: flex; flex-direction: column; }
+.hs-stats b { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hs-stats span, .hs-spark > span { font-size: 12px; opacity: .75; }
+.hs-spark { margin-top: 12px; }
+.spark { width: 100%; height: 46px; display: block; margin-top: 4px; overflow: visible; }
+.spark-line { fill: none; stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.spark-area { fill: rgba(255,255,255,.14); stroke: none; }
+
+.fill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.h-month {
+  position: sticky; top: -1px; z-index: 1; display: flex; justify-content: space-between; align-items: baseline;
+  padding: 12px 4px 6px; background: var(--bg); font-size: 13px;
+}
+.h-month b { font-size: 15px; }
+.h-month span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.fill-item {
+  position: relative; display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 12px;
+  padding: 12px 14px 12px 12px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border);
+  overflow: hidden; cursor: pointer; transition: transform .2s var(--ease-spring);
+}
+.fill-item::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--t); }
+.fill-item:active { transform: scale(.98); }
+.fill-item.enter { animation: rise .45s var(--ease-out) both; animation-delay: calc(var(--i) * 30ms); }
+.fi-icon {
+  width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--t) 16%, transparent); color: var(--t);
+}
+.fi-icon svg { width: 22px; height: 22px; }
+.fi-date { display: flex; flex-direction: column; align-items: center; min-width: 30px; line-height: 1.1; }
+.fi-date b { font-size: 22px; font-weight: 700; }
+.fi-date small { font-size: 11px; color: var(--muted); }
+.fi-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fi-top { display: flex; align-items: center; gap: 6px; }
+.fi-amount { margin-left: auto; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fi-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fi-chips span {
+  font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.fi-chips .rate.up { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.fi-chips .rate.down { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+
+/* ---------- สรุปรายปี (bento) ---------- */
+.yr-hero { display: flex; flex-direction: column; align-items: center; padding: 6px 0 14px; }
+.yr-hero.enter { animation: rise .5s var(--ease-out) both; }
+.yr-kicker { font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+.yr-year {
+  font-size: 72px; font-weight: 800; line-height: 1; letter-spacing: -.03em;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 40%, var(--text)));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.bento { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bento.animate .b-tile { animation: rise .5s var(--ease-out) both; animation-delay: calc(var(--i) * 60ms); }
+.b-tile {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  padding: 14px; border-radius: 22px; background: var(--surface); border: 1px solid var(--border);
+}
+.b-wide { grid-column: 1 / -1; }
+.b-label { font-size: 12px; color: var(--muted); }
+.b-row { display: flex; justify-content: space-between; gap: 8px; }
+.b-big { font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.b-big small, .b-mid small { font-size: 14px; font-weight: 500; color: var(--muted); }
+.b-mid { font-size: 24px; font-weight: 800; text-align: center; margin-top: -6px; }
+.b-note { font-size: 12px; color: var(--muted); }
+.b-accent { color: #fff; border: 0; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 85%, #000), color-mix(in srgb, var(--accent) 30%, #000)); }
+.b-accent .b-label, .b-accent .b-note, .b-accent .b-big small { color: rgba(255,255,255,.75); }
+.yr-road { width: 100%; height: 70px; display: block; margin: 2px 0; }
+.road-bg { fill: none; stroke: rgba(0,0,0,.35); stroke-width: 14; stroke-linecap: round; }
+.road-dash { fill: none; stroke: rgba(255,255,255,.7); stroke-width: 2; stroke-dasharray: 8 8; animation: dash 1.2s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -16; } }
+.road-car { fill: #fff; filter: drop-shadow(0 0 6px rgba(255,255,255,.8)); }
+.yr-drop { position: absolute; right: 12px; top: 12px; width: 28px; height: 36px; }
+.drop-bg { fill: var(--surface-2); }
+.drop-fill { fill: var(--accent); }
+.yr-bars { display: flex; align-items: flex-end; gap: 5px; height: 70px; margin-top: 6px; }
+.yr-bars i { flex: 1; height: var(--h); border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--accent) 35%, var(--surface-2)); transform-origin: bottom; animation: grow .7s var(--ease-out) both; animation-delay: calc(var(--i) * 30ms); }
+.yr-bars i.top { background: var(--accent); }
+.yr-bars-x { display: flex; gap: 5px; }
+.yr-bars-x span { flex: 1; text-align: center; font-size: 10px; color: var(--muted); }
+.b-gauge { align-items: center; }
+.b-gauge .b-label { align-self: flex-start; }
+.yr-gauge { width: 100%; max-width: 140px; height: auto; overflow: visible; }
+.g-track { fill: none; stroke: var(--surface-2); stroke-width: 10; stroke-linecap: round; }
+.g-bar { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; }
+.g-needle { stroke: var(--text); stroke-width: 3; stroke-linecap: round; }
+.g-hub { fill: var(--text); }
+.yr-mix { display: flex; gap: 3px; height: 14px; border-radius: 7px; overflow: hidden; margin-top: 8px; }
+.yr-mix i { background: var(--t); }
+.yr-mix-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; font-weight: 600; }
+.yr-mix-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.yr-mix-legend span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--t); }
+.b-total { background: var(--surface-2); }
+
+/* ---------- ผ่อนรถ (ดีไซน์ใหม่) ---------- */
+.ln-hero {
+  position: relative; overflow: hidden; border-radius: 26px; padding: 20px 18px 16px; margin-bottom: 12px; color: #fff;
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--accent) 55%, transparent), transparent 60%),
+    linear-gradient(160deg, #1d1d22, #0b0b0d);
+}
+.ln-hero.enter { animation: rise .5s var(--ease-out) both; }
+.ln-kicker { font-size: 13px; opacity: .7; }
+.ln-amount { display: block; font-size: 44px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin: 2px 0; font-variant-numeric: tabular-nums; }
+.ln-sub { font-size: 13px; opacity: .7; }
+.ln-track { position: relative; height: 10px; border-radius: 5px; background: rgba(255,255,255,.14); margin: 30px 14px 8px 0; }
+.ln-fill {
+  position: absolute; inset: 0 auto 0 0; width: calc(var(--p) * 100%); border-radius: 5px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, #fff), var(--accent)); transition: width 1.4s var(--ease-out);
+}
+.ln-car {
+  position: absolute; top: -26px; left: calc(var(--p) * 100%); transform: translateX(-50%); color: #fff;
+  transition: left 1.4s var(--ease-out); filter: drop-shadow(0 2px 6px rgba(0,0,0,.4));
+}
+.ln-car svg { width: 26px; height: 26px; }
+.ln-flag { position: absolute; right: -14px; top: -22px; font-size: 16px; }
+.ln-ends { display: flex; justify-content: space-between; font-size: 12px; opacity: .75; font-variant-numeric: tabular-nums; }
+.ln-next {
+  display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 22px; margin-bottom: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.ln-next.done { justify-content: center; font-size: 18px; }
+.cal {
+  width: 58px; flex: none; border-radius: 14px; overflow: hidden; text-align: center; background: var(--surface-2);
+  display: flex; flex-direction: column;
+}
+.cal small { background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; padding: 2px 0; }
+.cal b { font-size: 26px; font-weight: 800; padding: 2px 0 4px; }
+.ln-next-text { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.ln-next-text span { font-size: 13px; color: var(--muted); }
+.ln-next-text b { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ln-count { font-size: 13px; font-weight: 700; padding: 6px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.ln-count.soon { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.ln-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+.ln-stats div { padding: 12px 14px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+.ln-stats span { font-size: 12px; color: var(--muted); }
+.ln-stats b { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ln-year { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+.ln-year:first-of-type { border-top: 0; }
+.ln-year-label { width: 40px; flex: none; font-size: 13px; font-weight: 700; color: var(--muted); padding-top: 6px; }
+.ln-dots { flex: 1; display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px 4px; }
+.ln-dot { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ln-dot i {
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 13px; font-weight: 800;
+  border: 2px solid var(--border); color: transparent;
+}
+.ln-dot small { font-size: 10px; color: var(--muted); }
+.ln-dot.paid i { background: var(--good); border-color: var(--good); color: #fff; }
+.ln-dot.down i { background: color-mix(in srgb, var(--good) 40%, transparent); border-color: transparent; }
+.ln-dot.now i { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent); }
+.ln-dot.enter i { animation: pop .35s var(--ease-spring) both; animation-delay: calc(var(--i) * 10ms); }

@@ -139,8 +139,9 @@
       <span class="spacer"></span>
     </header>
     <div class="page-body">
-      <section class="card">
-        <ul id="history" class="history"></ul>
+      <section class="hs-card" id="historySummary"></section>
+      <section>
+        <ul id="history" class="fill-list"></ul>
         <div id="loadMore" class="load-more" hidden><span class="spinner"></span></div>
       </section>
     </div>
@@ -350,6 +351,12 @@
       <span class="spacer"></span>
     </header>
     <div class="form">
+      <h3 class="section-title" data-i18n="s.car"></h3>
+      <label class="field">
+        <span data-i18n="s.carName"></span>
+        <input type="text" id="carNameInput" maxlength="30" autocomplete="off" placeholder="Yaris ATIV">
+      </label>
+
       <h3 class="section-title" data-i18n="s.look"></h3>
       <div class="field">
         <span data-i18n="s.mode"></span>

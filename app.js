@@ -5,7 +5,7 @@ const TYPE_CLASS = { G95: 't-g95', G91: 't-g91', E20: 't-e20', 'G95 Premium': 't
 const typeClass = (t) => TYPE_CLASS[t] || 't-other';
 const KEYS = {
   setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', mRange: 'fl.mRange',
-  demo: 'fl.demoRows', ptt: 'fl.ptt', loan: 'fl.loan', car: 'fl.car', hero: 'fl.hero', odo: 'fl.odo',
+  demo: 'fl.demoRows', ptt: 'fl.ptt', loan: 'fl.loan', car: 'fl.car', hero: 'fl.hero', odo: 'fl.odo', carName: 'fl.carName',
 };
 const PAGE_SIZE = 20;
 
@@ -229,6 +229,9 @@ function kmPerDay(list) {
 }
 
 const DEFAULT_TANK = 40; // ลิตร (Yaris ATIV)
+const DEFAULT_CAR_NAME = 'Yaris ATIV';
+// ชื่อรถ: เก็บในชีต Car settings (ใช้ได้ทุกเครื่อง) และในเครื่องเป็นค่าสำรอง
+const carName = () => state.car?.settings?.carName || store.get(KEYS.carName, '') || DEFAULT_CAR_NAME;
 const tankLiters = () => Number(state.car?.settings?.tankL) || DEFAULT_TANK;
 
 // เลขไมล์ที่ผู้ใช้อัปเดตเองล่าสุด (เก็บในเครื่อง + ชีต Car settings) เลือกอันที่ใหม่กว่า
@@ -276,6 +279,7 @@ function estimate(list) {
 
 // หน้าแรก: ตัวเลขใหญ่ (แตะเพื่อสลับ) + สถานะ + คำอธิบายในเมนู
 function renderHome(list) {
+  $('.car-title').textContent = carName();
   const e = estimate(list);
   const avg = e.kml;
   const last = e.last;
@@ -432,30 +436,85 @@ function renderChart(list) {
   svg.addEventListener('pointerleave', hide);
 }
 
-/* ---------- ประวัติ (โหลดต่อเมื่อเลื่อนถึงท้าย) ---------- */
+/* ---------- ประวัติ (จัดกลุ่มตามเดือน + โหลดต่อเมื่อเลื่อนถึงท้าย) ---------- */
 let historyItems = [];
 let historyAll = [];
+let historyAvg = null;
+const PUMP_PATH = 'M4 3.5A1.5 1.5 0 0 1 5.5 2h8A1.5 1.5 0 0 1 15 3.5V20h.5a1 1 0 1 1 0 2h-12a1 1 0 1 1 0-2H4zM6.5 4.5v5h6v-5zM16.3 5.3a1 1 0 0 1 1.4 0l2.7 2.7c.4.4.6.9.6 1.4V17a2.5 2.5 0 0 1-5 0v-3.5h1.5V17a1 1 0 0 0 2 0v-5.5h-.6A1.6 1.6 0 0 1 17.3 10V8.4l-1-1a1 1 0 0 1 0-1.4z';
+const WEEKDAYS = { th: ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'], en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] };
+
+function monthHeader(r) {
+  const k = monthKey(r.d);
+  const items = historyAll.filter((x) => x.d && monthKey(x.d) === k);
+  return `<li class="h-month"><b>${fmtMonthLong(r.d)}</b><span>${esc(t('m.fills', { n: items.length }))} · ฿${fmtInt(sumBy(items, (x) => x.price))}</span></li>`;
+}
+
 function historyRow(r, i, enterIdx) {
+  const prev = historyAll[historyAll.indexOf(r) + 1]; // ครั้งก่อนหน้า (รายการเรียงใหม่→เก่า)
+  const dist = prev ? r.mileage - prev.mileage : null;
+  const diff = r.rate != null && historyAvg ? (r.rate - historyAvg) / historyAvg : null;
+  const trend = diff == null ? '' : diff >= 0.03 ? 'up' : diff <= -0.03 ? 'down' : 'flat';
   return `
-    <li data-i="${i}" role="button" tabindex="0"${enterIdx != null ? ` class="enter" style="--i:${enterIdx}"` : ''}>
-      <div class="h-main">${fmtDate(r.d)}<span class="badge ${typeClass(r.type)}">${esc(r.type)}</span>${r.pending ? `<span class="badge pending">${esc(t('pending'))}</span>` : ''}</div>
-      <div class="h-rate${r.low ? ' low' : ''}">${r.rate != null ? fmt(r.rate) : '–'}<small>${esc(r.rate != null ? t('unit.kml') : t('history.waitNext'))}</small></div>
-      <div class="h-sub">${fmtInt(r.mileage)} ${esc(t('unit.km'))} · ${fmt(r.liters)} ${esc(t('unit.l'))} · ฿${fmt(r.oilPrice)}/${esc(t('unit.l'))}</div>
-      <div class="h-sub" style="text-align:right">฿${fmtInt(r.price)}</div>
+    <li class="fill-item ${typeClass(r.type)}${enterIdx != null ? ' enter' : ''}" data-i="${i}" role="button" tabindex="0"${enterIdx != null ? ` style="--i:${enterIdx}"` : ''}>
+      <span class="fi-icon"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="${PUMP_PATH}"/></svg></span>
+      <span class="fi-date"><b>${r.d ? r.d.getDate() : '–'}</b><small>${r.d ? WEEKDAYS[LANG][r.d.getDay()] : ''}</small></span>
+      <span class="fi-main">
+        <span class="fi-top"><span class="badge ${typeClass(r.type)}" style="margin:0">${esc(r.type)}</span>${r.pending ? `<span class="badge pending">${esc(t('pending'))}</span>` : ''}<b class="fi-amount">฿${fmtInt(r.price)}</b></span>
+        <span class="fi-chips">
+          <span>${fmt(r.liters, 1)} ${esc(t('unit.l'))}</span>
+          ${dist != null ? `<span>+${fmtInt(dist)} ${esc(t('unit.km'))}</span>` : ''}
+          <span class="rate ${trend}">${r.rate != null ? `${trend === 'up' ? '▲' : trend === 'down' ? '▼' : '•'} ${fmt(r.rate, 1)} ${esc(t('unit.kml.short'))}` : esc(t('history.waitNext'))}</span>
+        </span>
+      </span>
     </li>`;
+}
+
+// แสดงหลายรายการ พร้อมหัวเดือนเมื่อเดือนเปลี่ยน
+function historyHtml(items, startIdx, animate) {
+  let html = '';
+  items.forEach((r, j) => {
+    const i = startIdx + j;
+    const before = historyAll[i - 1];
+    if (r.d && (!before || !before.d || monthKey(before.d) !== monthKey(r.d))) html += monthHeader(r);
+    html += historyRow(r, i, animate && j < 14 ? j : null);
+  });
+  return html;
 }
 
 function renderHistory(list, { reset = false } = {}) {
   const ul = $('#history');
   if (reset) {
     historyAll = [...list].reverse();
+    const rated = list.filter((r) => r.rate != null && r.d && r.d.getTime() >= yearAgo());
+    historyAvg = rated.length ? sumBy(rated, (r) => r.rate) / rated.length : null;
     state.shown = Math.max(PAGE_SIZE, Math.min(state.shown, historyAll.length));
     historyItems = historyAll.slice(0, state.shown);
     const animate = state.animate && !reduceMotion;
-    ul.innerHTML = historyItems.map((r, i) => historyRow(r, i, animate && i < 12 ? i : null)).join('')
-      || `<li><div class="h-sub">${esc(t('history.empty'))}</div></li>`;
+    ul.innerHTML = historyHtml(historyItems, 0, animate) || `<li><div class="h-sub">${esc(t('history.empty'))}</div></li>`;
+    renderHistorySummary(list);
   }
   $('#loadMore').hidden = historyAll.length <= historyItems.length;
+}
+
+// สรุปด้านบนหน้าประวัติ + กราฟเส้นเล็ก (อัตรากินน้ำมัน 20 ครั้งล่าสุด)
+function renderHistorySummary(list) {
+  const el = $('#historySummary');
+  if (!el) return;
+  const pts = list.filter((r) => r.rate != null).slice(-20);
+  let spark = '';
+  if (pts.length >= 3) {
+    const ys = pts.map((p) => p.rate), lo = Math.min(...ys), hi = Math.max(...ys);
+    const X = (i) => (i / (pts.length - 1)) * 100, Y = (v) => 34 - ((v - lo) / (hi - lo || 1)) * 30;
+    const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.rate).toFixed(1)}`).join('');
+    spark = `<svg class="spark" viewBox="0 0 100 38" preserveAspectRatio="none"><path d="${d}L100,38L0,38Z" class="spark-area"/><path d="${d}" class="spark-line"/></svg>`;
+  }
+  el.innerHTML = `
+    <div class="hs-stats">
+      <div><b>${list.length}</b><span>${esc(t('yr.fills'))}</span></div>
+      <div><b>${fmtInt(sumBy(list, (r) => r.liters))}</b><span>${esc(t('unit.liters'))}</span></div>
+      <div><b>฿${fmtInt(sumBy(list, (r) => r.price))}</b><span>${esc(t('hs.total'))}</span></div>
+    </div>
+    ${spark ? `<div class="hs-spark"><span>${esc(t('hs.trend'))}</span>${spark}</div>` : ''}`;
 }
 
 let loadingMore = false;
@@ -467,7 +526,7 @@ function loadMoreHistory() {
     const next = historyAll.slice(start, start + PAGE_SIZE);
     historyItems = historyItems.concat(next);
     state.shown = historyItems.length;
-    $('#history').insertAdjacentHTML('beforeend', next.map((r, i) => historyRow(r, start + i, reduceMotion ? null : i)).join(''));
+    $('#history').insertAdjacentHTML('beforeend', historyHtml(next, start, !reduceMotion));
     $('#loadMore').hidden = historyAll.length <= historyItems.length;
     loadingMore = false;
   }, 350);
@@ -628,27 +687,25 @@ function renderLoan() {
   const paid = rows.filter((r) => r.paid);
   const total = all.reduce((s, r) => s + r.amount, 0);
   const paidAmt = all.filter((r) => r.paid).reduce((s, r) => s + r.amount, 0);
+  const down = all.filter((r) => r.down).reduce((s, r) => s + r.amount, 0);
   const pct = rows.length ? paid.length / rows.length : 0;
   const next = rows.find((r) => !r.paid);
+  const lastRow = rows[rows.length - 1];
   const dueDay = state.loan.dueDay || 25;
   const nowK = monthKey(new Date());
   const anim = state.animate && !reduceMotion;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yLabel = (y) => (LANG === 'th' ? y + 543 : y);
 
-  let nextHtml = `<div class="next-due"><div><div class="v">${esc(t('loan.done'))}</div></div></div>`;
+  let dueDate = null, days = null;
   if (next) {
-    const due = new Date(next.d.getFullYear(), next.d.getMonth(), dueDay);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const days = Math.round((due - today) / 864e5);
-    nextHtml = `<div class="next-due">
-        <div><div class="k">${esc(t('loan.next'))}</div><div class="v">${fmtDate(due)} · ฿${fmtInt(next.amount)}</div></div>
-        <div class="in">${esc(days <= 0 ? t('loan.dueToday') : t('loan.dueIn', { n: days }))}</div>
-      </div>`;
+    dueDate = new Date(next.d.getFullYear(), next.d.getMonth(), dueDay);
+    days = Math.round((dueDate - today) / DAY);
   }
-
   $('#mLoan').textContent = next
-    ? t('menu.loan', { paid: paid.length, total: rows.length, date: fmtDate(new Date(next.d.getFullYear(), next.d.getMonth(), dueDay)) })
+    ? t('menu.loan', { paid: paid.length, total: rows.length, date: fmtDate(dueDate) })
     : t('loan.done');
-  const C = 2 * Math.PI * 54;
+
   const years = new Map();
   all.forEach((r) => {
     const y = r.d.getFullYear();
@@ -656,41 +713,53 @@ function renderLoan() {
     years.get(y).push(r);
   });
   let ci = 0;
-  const grid = [...years].map(([y, list]) => `
-    <div class="loan-year">
-      <h3>${LANG === 'th' ? y + 543 : y}</h3>
-      <div class="loan-grid">${list.map((r) => `<div class="loan-cell${r.paid ? ' paid' : ''}${r.down ? ' down' : ''}${monthKey(r.d) === nowK ? ' now' : ''}${anim ? ' enter' : ''}" style="--i:${ci++}">${r.down ? esc(t('loan.down')) : mon(r.d)}</div>`).join('')}</div>
+  const schedule = [...years].map(([y, list]) => `
+    <div class="ln-year">
+      <span class="ln-year-label">${yLabel(y)}</span>
+      <div class="ln-dots">${list.map((r) => {
+        const cls = [r.paid ? 'paid' : '', r.down ? 'down' : '', monthKey(r.d) === nowK ? 'now' : '', anim ? 'enter' : ''].filter(Boolean).join(' ');
+        return `<span class="ln-dot ${cls}" style="--i:${ci++}" title="${fmtMonth(r.d)}"><i>${r.paid ? '✓' : ''}</i><small>${r.down ? esc(t('loan.down')) : mon(r.d)}</small></span>`;
+      }).join('')}</div>
     </div>`).join('');
 
   body.innerHTML = `
-    <section class="stats">
-      <div class="stat"><span class="stat-label">${esc(t('loan.paid'))}</span><span class="stat-value">${paid.length}/${rows.length}</span><span class="stat-unit">${esc(t('loan.installments'))}</span></div>
-      <div class="stat"><span class="stat-label">${esc(t('loan.paidAmount'))}</span><span class="stat-value">${fmtInt(paidAmt)}</span><span class="stat-unit">${esc(t('unit.baht'))}</span></div>
-      <div class="stat"><span class="stat-label">${esc(t('loan.remaining'))}</span><span class="stat-value">${fmtInt(total - paidAmt)}</span><span class="stat-unit">${esc(t('unit.baht'))}</span></div>
-    </section>
-    <section class="card">
-      <div class="card-head"><h2>${esc(t('loan.progress'))}</h2></div>
-      <div class="loan-hero">
-        <div class="ring">
-          <svg viewBox="0 0 120 120"><circle class="track-c" cx="60" cy="60" r="54" stroke-width="12" fill="none"/>
-            <circle class="bar-c" cx="60" cy="60" r="54" stroke-width="12" fill="none" stroke-dasharray="${C}" stroke-dashoffset="${anim ? C : C * (1 - pct)}" data-target="${C * (1 - pct)}"/></svg>
-          <div class="ring-label"><b>${Math.round(pct * 100)}%</b><small>${esc(t('loan.of', { n: rows.length }))}</small></div>
-        </div>
-        <div class="loan-facts">
-          <div><div class="k">${esc(t('loan.paidAmount'))}</div><div class="v">฿${fmtInt(paidAmt)}</div></div>
-          <div><div class="k">${esc(t('loan.remaining'))}</div><div class="v">฿${fmtInt(total - paidAmt)}</div></div>
-        </div>
+    <section class="ln-hero${anim ? ' enter' : ''}">
+      <span class="ln-kicker">${esc(t('loan.remaining'))}</span>
+      <b class="ln-amount">฿${fmtInt(total - paidAmt)}</b>
+      <span class="ln-sub">${esc(t('loan.of', { n: rows.length }))} · ${esc(t('loan.paidN', { n: paid.length }))}</span>
+      <div class="ln-track">
+        <div class="ln-fill" style="--p:${anim ? 0 : pct}" data-p="${pct}"></div>
+        <span class="ln-car" style="--p:${anim ? 0 : pct}" data-p="${pct}"><svg class="ic" viewBox="0 0 24 24"><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11h.5A1.5 1.5 0 0 1 21 12.5V17a1 1 0 0 1-1 1h-1a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0H4a1 1 0 0 1-1-1v-4.5A1.5 1.5 0 0 1 4.5 11zm2.2 0h9.6l-1.1-3a1 1 0 0 0-.9-.6H9.2a1 1 0 0 0-.9.6z"/></svg></span>
+        <span class="ln-flag">🏁</span>
       </div>
-      ${nextHtml}
+      <div class="ln-ends"><span>${Math.round(pct * 100)}%</span><span>${lastRow ? esc(t('loan.finish', { m: fmtMonth(lastRow.d) })) : ''}</span></div>
     </section>
+
+    ${next ? `
+    <section class="ln-next">
+      <div class="cal"><small>${mon(dueDate)}</small><b>${dueDate.getDate()}</b></div>
+      <div class="ln-next-text">
+        <span>${esc(t('loan.next'))} · ${esc(t('loan.nth', { n: paid.length + 1 }))}</span>
+        <b>฿${fmtInt(next.amount)}</b>
+      </div>
+      <span class="ln-count${days <= 7 ? ' soon' : ''}">${esc(days <= 0 ? t('loan.dueToday') : t('loan.dueIn', { n: days }))}</span>
+    </section>` : `<section class="ln-next done"><b>${esc(t('loan.done'))}</b></section>`}
+
+    <section class="ln-stats">
+      <div><span>${esc(t('loan.paidAmount'))}</span><b>฿${fmtInt(paidAmt)}</b></div>
+      <div><span>${esc(t('loan.monthly'))}</span><b>฿${fmtInt(installment || 0)}</b></div>
+      ${down ? `<div><span>${esc(t('loan.downAmount'))}</span><b>฿${fmtInt(down)}</b></div>` : ''}
+    </section>
+
     <section class="card">
       <div class="card-head"><h2>${esc(t('loan.schedule'))}</h2></div>
-      ${grid}
+      ${schedule}
       <p class="loan-note">${esc(t('loan.autoNote'))}</p>
     </section>`;
   if (anim) {
-    const bar = $('.bar-c', body);
-    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.strokeDashoffset = bar.dataset.target; }));
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      $$('[data-p]', body).forEach((el) => el.style.setProperty('--p', el.dataset.p));
+    }));
   }
 }
 
@@ -717,7 +786,10 @@ function renderCompare(list) {
     </div>`).join('');
 }
 
-/* ---------- 4. สรุปรายปี ---------- */
+/* ---------- 4. สรุปรายปี (แบบ Year in review) ---------- */
+const BKK_CNM_KM = 690;       // กรุงเทพฯ–เชียงใหม่ ทางถนนโดยประมาณ
+const EARTH_KM = 40075;       // รอบโลก
+
 function renderYear(list) {
   const years = [...new Set(list.filter((r) => r.d).map((r) => r.d.getFullYear()))].sort((a, b) => b - a);
   const seg = $('#yearSeg');
@@ -728,7 +800,8 @@ function renderYear(list) {
     return;
   }
   if (!years.includes(state.year)) state.year = years[0];
-  seg.innerHTML = years.slice(0, 5).map((y) => `<button type="button" data-year="${y}" class="${y === state.year ? 'active' : ''}">${LANG === 'th' ? y + 543 : y}</button>`).join('');
+  const yLabel = (y) => (LANG === 'th' ? y + 543 : y);
+  seg.innerHTML = years.slice(0, 5).map((y) => `<button type="button" data-year="${y}" class="${y === state.year ? 'active' : ''}">${yLabel(y)}</button>`).join('');
   const y = state.year;
   const inYear = list.filter((r) => r.d && r.d.getFullYear() === y);
   const before = list.filter((r) => r.d && r.d.getFullYear() < y);
@@ -740,29 +813,90 @@ function renderYear(list) {
   const kml = segs.length ? sumBy(segs, (x) => x.dist) / sumBy(segs, (x) => x.liters) : null;
   const costKm = dist > 0 ? fuel / dist : null;
   const other = (state.car?.expenses || []).filter((x) => x.date.startsWith(String(y))).reduce((acc, x) => acc + x.amount, 0);
-  const byMonth = monthlyData(list).filter((m) => m.d.getFullYear() === y);
-  const topMonth = byMonth.reduce((a, m) => (m.total > (a?.total ?? 0) ? m : a), null);
+  const byMonth = Array.from({ length: 12 }, (_, m) => sumBy(inYear.filter((r) => r.d.getMonth() === m), (r) => r.price));
+  const topM = byMonth.indexOf(Math.max(...byMonth));
   const typeCount = {};
   inYear.forEach((r) => { typeCount[r.type] = (typeCount[r.type] || 0) + 1; });
-  const favType = Object.entries(typeCount).sort((a, b) => b[1] - a[1])[0];
+  const mix = Object.entries(typeCount).sort((a, b) => b[1] - a[1]);
   const anim = state.animate && !reduceMotion;
-  const tiles = [
-    [t('yr.distance'), fmtInt(dist), t('unit.km')],
-    [t('yr.fills'), String(inYear.length), t('yr.times')],
-    [t('yr.liters'), fmt(liters, 0), t('unit.liters')],
-    [t('yr.kml'), kml ? fmt(kml) : '–', t('unit.kml')],
-    [t('yr.fuel'), `฿${fmtInt(fuel)}`, t('yr.fuelSub')],
-    [t('yr.other'), `฿${fmtInt(other)}`, t('yr.otherSub')],
-    [t('yr.total'), `฿${fmtInt(fuel + other)}`, dist ? t('yr.perKmAll', { n: fmt((fuel + other) / dist) }) : ''],
-    [t('yr.costKm'), costKm ? `฿${fmt(costKm)}` : '–', t('yr.costKmSub')],
-    [t('yr.topMonth'), topMonth ? fmtMonth(topMonth.d) : '–', topMonth ? `฿${fmtInt(topMonth.total)}` : ''],
-    [t('yr.favType'), favType ? favType[0] : '–', favType ? t('cmp.n', { n: favType[1] }) : ''],
-  ];
-  $('#yearBody').innerHTML = `<div class="tiles">${tiles.map(([k, v, u], i) => `
-    <div class="tile${anim ? ' enter' : ''}" style="--i:${i}"><span class="stat-label">${esc(k)}</span><b>${esc(v)}</b><span class="stat-unit">${esc(u)}</span></div>`).join('')}</div>`;
+  const tank = tankLiters();
+  const trips = dist / BKK_CNM_KM;
+  const earthPct = (dist / EARTH_KM) * 100;
+  const tanks = liters / tank;
+
+  // ภาพประกอบ: ถนนคดเคี้ยวพร้อมรถ (ความยาวเส้นทางที่วาดแล้วตามสัดส่วนรอบโลก)
+  const road = `<svg class="yr-road" viewBox="0 0 320 90" preserveAspectRatio="none">
+      <path class="road-bg" d="M-10 70 C60 70 70 20 140 24 S230 78 330 30"/>
+      <path class="road-dash" d="M-10 70 C60 70 70 20 140 24 S230 78 330 30"/>
+      <circle class="road-car" r="7"><animateMotion dur="5s" repeatCount="indefinite" path="M-10 70 C60 70 70 20 140 24 S230 78 330 30"/></circle>
+    </svg>`;
+  // หยดน้ำมันเติมตามจำนวนถัง (เศษของถังสุดท้าย)
+  const dropFill = 100 - Math.min(100, ((tanks % 1) || 1) * 100);
+  const drop = `<svg class="yr-drop" viewBox="0 0 40 52"><defs><clipPath id="dropClip"><path d="M20 2C12 14 4 24 4 33a16 16 0 0 0 32 0C36 24 28 14 20 2z"/></clipPath></defs>
+      <path class="drop-bg" d="M20 2C12 14 4 24 4 33a16 16 0 0 0 32 0C36 24 28 14 20 2z"/>
+      <rect class="drop-fill" clip-path="url(#dropClip)" x="0" y="${(dropFill / 100) * 52}" width="40" height="52"/></svg>`;
+  // หน้าปัดอัตรากินน้ำมัน (0–25 กม./ล.)
+  const g = Math.min(1, (kml || 0) / 25), ang = Math.PI * (1 - g);
+  const gauge = `<svg class="yr-gauge" viewBox="0 0 120 70"><path class="g-track" d="M10 62a50 50 0 0 1 100 0"/>
+      <path class="g-bar" d="M10 62a50 50 0 0 1 100 0" pathLength="100" stroke-dasharray="${(g * 100).toFixed(1)} 100"/>
+      <line class="g-needle" x1="60" y1="62" x2="${(60 + 40 * Math.cos(ang)).toFixed(1)}" y2="${(62 - 40 * Math.sin(ang)).toFixed(1)}"/><circle class="g-hub" cx="60" cy="62" r="5"/></svg>`;
+  const maxM = Math.max(1, ...byMonth);
+  const bars = `<div class="yr-bars">${byMonth.map((v, m) => `<i class="${m === topM && v ? 'top' : ''}" style="--h:${Math.max(v ? 6 : 2, (v / maxM) * 100)}%;--i:${m}" title="${MONTHS[LANG][m]}"></i>`).join('')}</div>`;
+  const mixBar = `<div class="yr-mix">${mix.map(([ty, n]) => `<i class="${typeClass(ty)}" style="flex:${n}"></i>`).join('')}</div>
+    <div class="yr-mix-legend">${mix.map(([ty, n]) => `<span class="${typeClass(ty)}">${esc(ty)} ${Math.round((n / inYear.length) * 100)}%</span>`).join('')}</div>`;
+
+  $('#yearBody').innerHTML = `
+    <div class="yr-hero${anim ? ' enter' : ''}">
+      <span class="yr-kicker">${esc(t('yr.kicker', { car: carName() }))}</span>
+      <b class="yr-year">${yLabel(y)}</b>
+    </div>
+    <div class="bento${anim ? ' animate' : ''}">
+      <section class="b-tile b-wide b-accent" style="--i:0">
+        <span class="b-label">${esc(t('yr.distance'))}</span>
+        <b class="b-big">${fmtInt(dist)}<small> ${esc(t('unit.km'))}</small></b>
+        ${road}
+        <span class="b-note">${esc(t('yr.funTrips', { n: fmt(trips, 1) }))} · ${esc(t('yr.funEarth', { n: fmt(earthPct, 0) }))}</span>
+      </section>
+      <section class="b-tile" style="--i:1">
+        <span class="b-label">${esc(t('yr.fills'))}</span>
+        <b class="b-big">${inYear.length}<small> ${esc(t('yr.times'))}</small></b>
+        <span class="b-note">${esc(t('yr.everyDays', { n: fmt(inYear.length > 1 ? (inYear[inYear.length - 1].d - inYear[0].d) / DAY / (inYear.length - 1) : 0, 0) }))}</span>
+      </section>
+      <section class="b-tile b-drop" style="--i:2">
+        <span class="b-label">${esc(t('yr.liters'))}</span>
+        <b class="b-big">${fmt(liters, 0)}<small> ${esc(t('unit.liters'))}</small></b>
+        <span class="b-note">${esc(t('yr.tanks', { n: fmt(tanks, 1), l: tank }))}</span>
+        ${drop}
+      </section>
+      <section class="b-tile b-wide" style="--i:3">
+        <div class="b-row"><span class="b-label">${esc(t('yr.fuel'))}</span><span class="b-label">${esc(t('yr.topMonth'))} · ${byMonth[topM] ? `${MONTHS[LANG][topM]} ฿${fmtInt(byMonth[topM])}` : '–'}</span></div>
+        <b class="b-big">฿${fmtInt(fuel)}</b>
+        ${bars}
+        <div class="yr-bars-x">${MONTHS[LANG].map((m) => `<span>${m.slice(0, LANG === 'th' ? 2 : 1)}</span>`).join('')}</div>
+      </section>
+      <section class="b-tile b-gauge" style="--i:4">
+        <span class="b-label">${esc(t('yr.kml'))}</span>
+        ${gauge}
+        <b class="b-mid">${kml ? fmt(kml, 1) : '–'}<small> ${esc(t('unit.kml.short'))}</small></b>
+      </section>
+      <section class="b-tile" style="--i:5">
+        <span class="b-label">${esc(t('yr.costKm'))}</span>
+        <b class="b-big">${costKm ? `฿${fmt(costKm)}` : '–'}</b>
+        <span class="b-note">${esc(t('yr.perKmAll', { n: dist ? fmt((fuel + other) / dist) : '–' }))}</span>
+      </section>
+      <section class="b-tile b-wide" style="--i:6">
+        <span class="b-label">${esc(t('yr.favType'))}</span>
+        ${mixBar}
+      </section>
+      <section class="b-tile b-wide b-total" style="--i:7">
+        <div class="b-row"><span class="b-label">${esc(t('yr.total'))}</span><span class="b-label">${esc(t('yr.other'))} ฿${fmtInt(other)}</span></div>
+        <b class="b-big">฿${fmtInt(fuel + other)}</b>
+        <span class="b-note">${esc(t('yr.perMonth', { n: fmtInt((fuel + other) / (y === new Date().getFullYear() ? new Date().getMonth() + 1 : 12)) }))}</span>
+      </section>
+    </div>`;
   const cy = new Date().getFullYear();
   const cur = list.filter((r) => r.d && r.d.getFullYear() === cy);
-  $('#mYear').textContent = cur.length ? t('menu.year', { y: LANG === 'th' ? cy + 543 : cy, n: fmtInt(sumBy(cur, (r) => r.price)) }) : '';
+  $('#mYear').textContent = cur.length ? t('menu.year', { y: yLabel(cy), n: fmtInt(sumBy(cur, (r) => r.price)) }) : '';
 }
 $('#yearSeg').addEventListener('click', (e) => {
   const b = e.target.closest('[data-year]');
@@ -1455,10 +1589,23 @@ function renderConnection(editing = false) {
 
 function initSettings() {
   renderThemeControls();
+  $('#carNameInput').value = carName();
   $('#huePicker').hidden = loadTheme().accent !== 'custom';
   renderConnection();
   if (!$('#huePicker').hidden) requestAnimationFrame(updateHuePicker);
 }
+
+$('#carNameInput').addEventListener('change', async (e) => {
+  const name = e.target.value.trim() || DEFAULT_CAR_NAME;
+  e.target.value = name;
+  store.set(KEYS.carName, name);
+  if (state.car) state.car.settings = { ...state.car.settings, carName: name };
+  renderHome(entries());
+  toast(t('t.saved'));
+  if (state.setup && state.car) {
+    try { await carPost({ action: 'setSettings', settings: { carName: name } }); } catch (err) { console.error(err); }
+  }
+});
 
 $('#editLinkBtn').addEventListener('click', () => { renderConnection(true); $('#setupInput').focus(); });
 $('#cancelEditBtn').addEventListener('click', () => renderConnection());
