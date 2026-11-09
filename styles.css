@@ -961,7 +961,7 @@ button.spec:active { transform: scale(.95); }
 }
 
 /* ---------- ตัวเลขใหญ่: ปัดซ้ายขวา ---------- */
-.hero { display: block; margin: 0 -20px; gap: 0; }
+.hero { display: block; width: auto; margin: 0 -20px; gap: 0; }
 .hero-track {
   display: flex; gap: 40px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
   padding: 0 20px; scroll-padding: 0 20px; scrollbar-width: none; touch-action: pan-x pan-y;
