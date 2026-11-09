@@ -1,7 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-  <rect width="120" height="120" fill="#0b0b0c"/>
-  <path d="M18 52l30 8-4 7-27-5z" fill="#f2f2f5"/>
-  <path d="M102 52l-30 8 4 7 27-5z" fill="#f2f2f5"/>
-  <path d="M34 74h52l-6 10H40z" fill="#26262a"/>
-  <circle cx="60" cy="61" r="5" fill="#8b5cf6"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs>
+  <linearGradient id="bgP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dcebdf"/><stop offset="1" stop-color="#b9d5bf"/></linearGradient>
+  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6a44"/><stop offset="1" stop-color="#1f4d2c"/></linearGradient>
+  <radialGradient id="glow" cx=".5" cy=".55" r=".55"><stop offset="0" stop-color="#ffffff" stop-opacity=".7"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+</defs><rect width="1024" height="1024" fill="url(#bgP)"/>
+    <ellipse cx="512" cy="800" rx="360" ry="34" fill="#1f4d2c" opacity=".16"/>
+    <rect x="196" y="672" width="128" height="120" rx="36" fill="#12301c"/>
+    <rect x="700" y="672" width="128" height="120" rx="36" fill="#12301c"/>
+    <path d="M318 318H706Q736 318 752 344L812 466H212L272 344Q288 318 318 318Z" fill="url(#body)"/>
+    <path d="M336 350H688L740 448H284Z" fill="#dcebdf"/>
+    <path d="M352 362H520L470 436H300Z" fill="#fff" opacity=".45"/>
+    <ellipse cx="196" cy="452" rx="44" ry="26" fill="#1f4d2c"/>
+    <ellipse cx="828" cy="452" rx="44" ry="26" fill="#1f4d2c"/>
+    <path d="M188 466H836Q884 466 892 516L902 650Q906 716 846 716H178Q118 716 122 650L132 516Q140 466 188 466Z" fill="url(#body)"/>
+    <path d="M160 512L374 548L352 578L176 560Z" fill="#fff"/>
+    <path d="M864 512L650 548L672 578L848 560Z" fill="#fff"/>
+    <path d="M366 600H658L618 696H406Z" fill="#12301c"/>
+    <g stroke="#c9e0cd" stroke-width="10" stroke-linecap="round" opacity=".55"><path d="M390 628H634"/><path d="M402 656H622"/><path d="M414 684H610"/></g>
+    <path d="M196 488H828" stroke="#fff" stroke-width="10" stroke-linecap="round" opacity=".2"/></svg>
