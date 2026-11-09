@@ -90,6 +90,8 @@ const isoToday = () => {
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// ใส่ข้อความถ้ามี element (บางส่วนถูกตัดออกตอนเปลี่ยนเป็นแท็บ)
+const setText = (sel, v) => { const el = $(sel); if (el) el.textContent = v; };
 
 function toast(msg, ms = 2600) {
   const el = $('#toast');
@@ -174,6 +176,7 @@ async function sync({ quiet = false } = {}) {
 /* ---------- render ---------- */
 function render({ keepHistory = false } = {}) {
   const list = entries();
+  renderSubs(list);
   renderBanner();
   renderHome(list);
   renderStats(list);
@@ -199,6 +202,15 @@ function renderBanner() {
   } else {
     el.hidden = true;
   }
+}
+
+// คำอธิบายใต้หัวข้อของแต่ละแท็บ
+function renderSubs(list) {
+  setText('#historySub', list.length ? `${t('m.fills', { n: list.length })} · ฿${fmtInt(sumBy(list, (r) => r.price))}` : '');
+  const e = estimate(list);
+  setText('#statsSub', e.kml ? `${t('stat.avg')} ${fmt(e.kml, 1)} ${t('unit.kml.short')}` : '');
+  const urgent = reminders(list).filter((r) => r.urgent && r.due).length;
+  setText('#carSub', !state.car ? '' : urgent ? t('car.soon', { n: urgent }) : t('car.ok'));
 }
 
 /* ---------- ตัวชี้วัด ---------- */
@@ -229,7 +241,7 @@ function kmPerDay(list) {
 }
 
 const DEFAULT_TANK = 40; // ลิตร (Yaris ATIV)
-const DEFAULT_CAR_NAME = 'Yaris ATIV';
+const DEFAULT_CAR_NAME = 'Yaris ATIV Premium';
 // ชื่อรถ: เก็บในชีต Car settings (ใช้ได้ทุกเครื่อง) และในเครื่องเป็นค่าสำรอง
 const carName = () => state.car?.settings?.carName || store.get(KEYS.carName, '') || DEFAULT_CAR_NAME;
 const tankLiters = () => Number(state.car?.settings?.tankL) || DEFAULT_TANK;
@@ -277,46 +289,60 @@ function estimate(list) {
   };
 }
 
-// หน้าแรก: ตัวเลขใหญ่ (แตะเพื่อสลับ) + สถานะ + คำอธิบายในเมนู
+// หน้าแรก: ชื่อรุ่น การ์ดสเปก ตัวเลขใหญ่ (แตะเพื่อสลับ) และการ์ดสรุป
+function carTitleHtml(name) {
+  // คำสุดท้ายของชื่อที่ยาวกว่า 2 คำ (เช่น Premium) แสดงตัวบางกว่า
+  const words = name.trim().split(/\s+/);
+  return words.length > 2 ? `${esc(words.slice(0, -1).join(' '))} <span>${esc(words.at(-1))}</span>` : esc(name);
+}
+
 function renderHome(list) {
-  $('.car-title').textContent = carName();
+  $('.car-title').innerHTML = carTitleHtml(carName());
   const e = estimate(list);
   const avg = e.kml;
   const last = e.last;
   const ago = last ? (e.days <= 0 ? t('ago.today') : t('ago.days', { n: e.days })) : '';
+  const lowFuel = e.remaining != null && e.remaining < 30;
   const modes = [
-    e.remaining != null && e.remaining < 30
+    lowFuel
       // ประมาณแล้วน่าจะใช้น้ำมันถังล่าสุดหมดแล้ว
-      ? { num: `~${fmtInt(e.range)}`, unit: t('unit.km'), status: t('hero.timeToFill'),
-        sub: `${e.typical ? t('hero.perTankTypical') : t('hero.perTank', { l: tankLiters() })} · ${t('hero.lastFill', { ago })}` }
+      ? { num: `~${fmtInt(e.range)}`, unit: t('unit.km'), status: t('hero.timeToFill'), bar: 0,
+        sub: e.typical ? t('hero.perTankTypical') : t('hero.perTank', { l: tankLiters() }) }
       : { num: e.remaining != null ? `~${fmtInt(e.remaining)}` : '–', unit: t('unit.km'),
-        status: t('hero.remaining'),
+        status: t('hero.remaining'), bar: e.remaining != null && e.range ? e.remaining / e.range : null,
         sub: !last ? '' : e.reading
-          ? `${t('hero.fromOdo', { ago: e.sinceReading <= 0 ? t('ago.today') : t('ago.days', { n: e.sinceReading }) })} · ${t('hero.lastFill', { ago })}`
-          : `${t('hero.lastFill', { ago })} · ${t('hero.perDay', { n: fmtInt(e.perDay) })}` },
-    { num: avg ? fmt(avg, 1) : '–', unit: t('unit.kml'), status: t('hero.kml'), sub: last ? t('hero.lastFill', { ago }) : '' },
-    { num: e.costKm ? fmt(e.costKm) : '–', unit: t('unit.bahtKm'), status: t('hero.costKm'), sub: t('hero.year') },
+          ? t('hero.fromOdo', { ago: e.sinceReading <= 0 ? t('ago.today') : t('ago.days', { n: e.sinceReading }) })
+          : t('hero.perDay', { n: fmtInt(e.perDay) }) },
+    { num: avg ? fmt(avg, 1) : '–', unit: t('unit.kml'), status: t('hero.kml'), sub: t('hero.year'), bar: null },
+    { num: e.costKm ? fmt(e.costKm) : '–', unit: t('unit.bahtKm'), status: t('hero.costKm'), sub: t('hero.year'), bar: null },
   ];
   const m = modes[state.hero] || modes[0];
   $('#heroNum').textContent = m.num;
   $('#heroUnit').textContent = m.unit;
-  $('#heroStatus').innerHTML = `${esc(m.status)}<small>${esc(m.sub)}</small>`;
+  $('#heroStatus').textContent = m.status;
+  const sub = m.bar != null && state.hero === 0 && !lowFuel
+    ? `${t('hero.fuelLeft', { pct: Math.round(Math.max(0, Math.min(1, m.bar)) * 100) })}${m.sub ? ` · ${m.sub}` : ''}` : m.sub;
+  $('#heroSub').textContent = sub;
+  const bar = $('#heroBar');
+  bar.hidden = m.bar == null;
+  bar.classList.toggle('low', lowFuel);
+  if (m.bar != null) $('i', bar).style.width = `${Math.max(0, Math.min(1, m.bar)) * 100}%`;
   $$('#heroDots i').forEach((d, i) => d.classList.toggle('on', i === state.hero));
-  // ปุ่มเลขไมล์ด่วน
+  // การ์ดสเปก: เลขไมล์ (แตะเพื่ออัปเดต) · เติมล่าสุด · ชนิดน้ำมัน
   if (e.odo) {
     const fresh = e.reading && e.sinceReading === 0;
-    $('#odoValue').textContent = `${fresh ? '' : '~'}${fmtInt(e.odo)} ${t('unit.km')}`;
+    $('#odoValue').textContent = `${fresh ? '' : '~'}${fmtInt(e.odo)}`;
     $('#odoNote').textContent = e.reading ? t('odo.updated', { ago: e.sinceReading <= 0 ? t('ago.today') : t('ago.days', { n: e.sinceReading }) }) : t('odo.estimated');
   }
-  const withRate = list.filter((r) => r.rate != null);
-  const lastRate = withRate[withRate.length - 1];
-  $('#mEconomy').textContent = avg ? t('menu.economy', { avg: fmt(avg), last: lastRate ? fmt(lastRate.rate) : '–' }) : '';
-  $('#mHistory').textContent = last ? `${fmtDate(last.d)} · ${last.type} · ฿${fmtInt(last.price)}` : t('history.empty');
-  const months = monthlyData(list);
-  const now = new Date(), nowK = monthKey(now);
-  const cur = months.find((m) => m.k === nowK);
-  const yearTotal = months.filter((m) => m.d.getFullYear() === now.getFullYear() && m.k <= nowK).reduce((s2, m) => s2 + m.total, 0);
-  $('#mMonthly').textContent = t('menu.monthly', { now: fmtInt(cur ? cur.total : 0), avg: fmtInt(yearTotal / (now.getMonth() + 1)) });
+  $('#specLast').textContent = last ? ago : '–';
+  $('#specType').innerHTML = last ? `<i class="dot ${typeClass(last.type)}"></i>${esc(last.type)}` : '–';
+  // การ์ดสรุป: อัตราเฉลี่ย · ราคาน้ำมันชนิดที่ใช้ล่าสุด (PTT วันนี้ ถ้ามี)
+  $('#tileAvg').innerHTML = avg ? `${fmt(avg, 1)} <small>${esc(t('unit.kml.short'))}</small>` : '–';
+  const type = last ? last.type : OIL_TYPES[0];
+  const pp = pttPrice(type);
+  const price = pp || lastPriceFor(type);
+  $('#tilePriceLabel').textContent = t(pp ? 'tile.priceToday' : 'tile.priceLast', { type });
+  $('#tilePrice').innerHTML = price ? `${fmt(price)} <small>฿</small>` : '–';
 }
 
 $('#hero').addEventListener('click', () => {
@@ -664,14 +690,14 @@ async function loadLoan() {
     // Apps Script รุ่นเก่าไม่รู้จัก action=loan จะส่งรายการเติมน้ำมันกลับมาแทน
     state.loanError = err.message === 'needUpdate' || err.message === 'no loan sheet' ? 'needUpdate' : 'failed';
   }
-  if (isOpen('loan')) state.animate = true;
+  if (currentTab === 'car') state.animate = true;
   renderLoan();
   state.animate = false;
 }
 
 function renderLoan() {
   const body = $('#loanBody');
-  $('#mLoan').textContent = '';
+  setText('#mLoan', '');
   if (!state.setup) { body.innerHTML = `<p class="empty-state">${esc(t('loan.notConnected'))}</p>`; return; }
   if (!state.loan) {
     body.innerHTML = `<p class="empty-state">${esc(state.loanError === 'needUpdate' ? t('loan.needUpdate') : t('loan.loading'))}</p>`;
@@ -702,9 +728,9 @@ function renderLoan() {
     dueDate = new Date(next.d.getFullYear(), next.d.getMonth(), dueDay);
     days = Math.round((dueDate - today) / DAY);
   }
-  $('#mLoan').textContent = next
+  setText('#mLoan', next
     ? t('menu.loan', { paid: paid.length, total: rows.length, date: fmtDate(dueDate) })
-    : t('loan.done');
+    : t('loan.done'));
 
   const years = new Map();
   rows.forEach((r) => {
@@ -794,7 +820,7 @@ function renderYear(list) {
   if (!years.length) {
     seg.innerHTML = '';
     $('#yearBody').innerHTML = `<p class="empty-state">${esc(t('chart.empty'))}</p>`;
-    $('#mYear').textContent = '';
+    setText('#mYear', '');
     return;
   }
   if (!years.includes(state.year)) state.year = years[0];
@@ -898,7 +924,7 @@ function renderYear(list) {
   }
   const cy = new Date().getFullYear();
   const cur = list.filter((r) => r.d && r.d.getFullYear() === cy);
-  $('#mYear').textContent = cur.length ? t('menu.year', { y: yLabel(cy), n: fmtInt(sumBy(cur, (r) => r.price)) }) : '';
+  setText('#mYear', cur.length ? t('menu.year', { y: yLabel(cy), n: fmtInt(sumBy(cur, (r) => r.price)) }) : '');
 }
 $('#yearSeg').addEventListener('click', (e) => {
   const b = e.target.closest('[data-year]');
@@ -1014,17 +1040,17 @@ function reminders(list) {
 
 function renderCare(list) {
   const body = $('#careBody');
-  if (!state.setup) { body.innerHTML = `<p class="empty-state">${esc(t('loan.notConnected'))}</p>`; $('#mCare').textContent = ''; return; }
+  if (!state.setup) { body.innerHTML = `<p class="empty-state">${esc(t('loan.notConnected'))}</p>`; setText('#mCare', ''); return; }
   if (!state.car) {
     body.innerHTML = `<p class="empty-state">${esc(state.carError === 'needUpdate' ? t('care.needUpdate') : t('loan.loading'))}</p>`;
-    $('#mCare').textContent = state.carError === 'needUpdate' ? t('care.needUpdateShort') : '';
+    setText('#mCare', state.carError === 'needUpdate' ? t('care.needUpdateShort') : '');
     return;
   }
   const rem = reminders(list);
   const urgent = rem.filter((r) => r.urgent);
   const firstDue = rem.find((r) => r.due);
-  $('#mCare').textContent = urgent.length ? urgent.map((r) => `${r.label} ${r.due}`).join(' · ')
-    : firstDue ? `${firstDue.label} ${firstDue.due}` : t('care.sub');
+  setText('#mCare', urgent.length ? urgent.map((r) => `${r.label} ${r.due}`).join(' · ')
+    : firstDue ? `${firstDue.label} ${firstDue.due}` : t('care.sub'));
 
   const y = new Date().getFullYear();
   const exps = [...state.car.expenses].sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -1129,7 +1155,7 @@ expForm.addEventListener('submit', async (e) => {
   toast(t('t.saving'));
   try { await carPost(body); toast(t('t.saved')); }
   catch (err) { console.error(err); toast(t('t.syncFailed'), 3500); }
-  state.animate = isOpen('care');
+  state.animate = currentTab === 'car';
   render({ keepHistory: true });
 });
 
@@ -1227,19 +1253,46 @@ const topSheet = () => stack[stack.length - 1] || null;
 const ON_OPEN = {
   form: () => initForm(),
   settings: () => initSettings(),
-  economy: () => { state.animate = true; renderChart(entries()); state.animate = false; },
-  historyPage: () => { state.animate = true; renderHistory(entries(), { reset: true }); state.animate = false; },
-  monthly: () => { state.animate = true; renderMonthly(entries()); state.animate = false; },
-  loan: () => { state.animate = true; renderLoan(); state.animate = false; },
   prices: () => renderPrices(),
-  yearPage: () => { state.animate = true; renderYear(entries()); state.animate = false; },
-  care: () => { state.animate = true; renderCare(entries()); state.animate = false; },
   expenseForm: () => initExpenseForm(),
   careSettings: () => initRemForm(),
   odoSheet: () => initOdo(),
 };
 
+// หน้าเดิมที่ตอนนี้อยู่ในแท็บ (ลิงก์ data-open เก่า เช่นจากแถบเตือน)
+const TAB_OF = { economy: 'stats', historyPage: 'history', monthly: 'stats', yearPage: 'stats', care: 'car', loan: 'car' };
+
+/* ---------- แท็บ ---------- */
+let currentTab = 'home';
+const TAB_RENDER = {
+  history: () => renderHistory(entries(), { reset: true }),
+  stats: () => { const l = entries(); renderStats(l); renderChart(l); renderMonthly(l); renderCompare(l); renderYear(l); },
+  car: () => { renderCare(entries()); renderLoan(); },
+};
+function switchTab(id) {
+  const scroller = $('#homeScroll');
+  if (id === currentTab) { scroller.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }); return; }
+  currentTab = id;
+  $$('.view').forEach((v) => { v.hidden = v.id !== `view-${id}`; });
+  $$('#tabs [data-tab]').forEach((b) => {
+    const on = b.dataset.tab === id;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  scroller.scrollTop = 0;
+  const view = $(`#view-${id}`);
+  view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter');
+  state.animate = true;
+  TAB_RENDER[id]?.();
+  state.animate = false;
+}
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (b) switchTab(b.dataset.tab);
+});
+
 function open(id) {
+  if (TAB_OF[id]) { closeSheets(); switchTab(TAB_OF[id]); return; }
   const sheet = $(`#${id}`);
   if (!sheet || isOpen(id)) return;
   const below = topSheet();
@@ -1321,16 +1374,21 @@ async function renderPrices() {
 function startFill() {
   if (!stack.length) open('form');
 }
-$('#carStage').addEventListener('click', startFill);
-$('#qAdd').addEventListener('click', startFill);
+$('#plusBtn').addEventListener('click', startFill);
 $('#qPrice').addEventListener('click', () => open('prices'));
-$('#qSync').addEventListener('click', async () => {
-  if (!state.setup) { toast(t('t.notConnected')); return; }
-  const b = $('#qSync');
-  b.classList.add('busy');
-  await sync();
-  b.classList.remove('busy');
+// แตะรถ → ไฟหน้ากะพริบติด
+$('#carStage').addEventListener('click', () => {
+  const car = $('#car');
+  car.classList.remove('flash'); void car.offsetWidth; car.classList.add('flash');
 });
+// สลับระหว่างแผ่นเติมน้ำมัน / ค่าใช้จ่ายอื่น
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-switch]');
+  if (!b) return;
+  closeTop();
+  open(b.dataset.switch);
+});
+
 
 /* ---------- form ---------- */
 const form = $('#entryForm');
@@ -1352,6 +1410,7 @@ async function loadPtt() {
     if (!data.prices) return null;
     ptt = { ...data, at: Date.now() };
     store.set(KEYS.ptt, ptt);
+    renderHome(entries());
     return ptt;
   } catch (err) {
     console.error(err);
@@ -1535,59 +1594,10 @@ function renderThemeControls() {
   const theme = loadTheme();
   $$('#themeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.themeMode === theme.mode));
   $('#swatches').innerHTML = Object.entries(ACCENTS).map(([id, a]) => `
-    <button type="button" class="swatch${id === theme.accent ? ' active' : ''}" data-accent="${id}" aria-label="${a.name}"
-      style="--sw-l: ${a.light}; --sw-d: ${a.dark}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>`).join('')
-    + `<button type="button" class="swatch custom${theme.accent === 'custom' ? ' active' : ''}" data-accent="custom" aria-label="${esc(t('s.custom'))}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>`;
+    <button type="button" class="swatch${id === theme.accent ? ' active' : ''}" data-accent="${id}" aria-label="${esc(a.name)}"
+      style="--sw: ${a.p}; --sw-ring: ${a.deep}; color: ${a.ink}"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></button>`).join('');
   $$('#langSeg button').forEach((b) => b.classList.toggle('active', b.dataset.lang === LANG));
 }
-
-// วงล้อเลือกสีเอง
-function updateHuePicker() {
-  const theme = loadTheme();
-  const h = theme.h ?? 270, s = theme.s ?? 75;
-  const ring = $('#hueRing');
-  ring.style.setProperty('--sat', `${s}%`);
-  const size = ring.clientWidth || 210;
-  const r = (size / 2) * 0.915; // กึ่งกลางความหนาของวงล้อ (ขอบใน 83%)
-  const rad = ((h - 90) * Math.PI) / 180;
-  const knob = $('#hueKnob');
-  knob.style.left = `${size / 2 + r * Math.cos(rad)}px`;
-  knob.style.top = `${size / 2 + r * Math.sin(rad)}px`;
-  knob.style.background = `hsl(${h} ${s}% 50%)`;
-  $('#huePreview').style.background = 'var(--accent)';
-  $('#satRange').value = s;
-}
-
-function setCustomHue(clientX, clientY) {
-  const rect = $('#hueRing').getBoundingClientRect();
-  const dx = clientX - (rect.left + rect.width / 2), dy = clientY - (rect.top + rect.height / 2);
-  const h = Math.round(((Math.atan2(dy, dx) * 180) / Math.PI + 90 + 360) % 360);
-  saveTheme({ ...loadTheme(), accent: 'custom', h });
-  updateHuePicker();
-  renderThemeControls();
-}
-
-$('#hueRing').addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  const ring = e.currentTarget;
-  ring.setPointerCapture(e.pointerId);
-  setCustomHue(e.clientX, e.clientY);
-  const move = (ev) => setCustomHue(ev.clientX, ev.clientY);
-  const up = () => {
-    ring.removeEventListener('pointermove', move);
-    ring.removeEventListener('pointerup', up);
-    ring.removeEventListener('pointercancel', up);
-    render({ keepHistory: true });
-  };
-  ring.addEventListener('pointermove', move);
-  ring.addEventListener('pointerup', up);
-  ring.addEventListener('pointercancel', up);
-});
-$('#satRange').addEventListener('input', (e) => {
-  saveTheme({ ...loadTheme(), accent: 'custom', s: +e.target.value });
-  updateHuePicker();
-  renderThemeControls();
-});
 
 $('#themeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('[data-theme-mode]');
@@ -1601,8 +1611,6 @@ $('#swatches').addEventListener('click', (e) => {
   if (!b) return;
   const id = b.dataset.accent;
   saveTheme({ ...loadTheme(), accent: id });
-  $('#huePicker').hidden = id !== 'custom';
-  if (id === 'custom') updateHuePicker();
   renderThemeControls();
   render({ keepHistory: true });
 });
@@ -1631,14 +1639,12 @@ function renderConnection(editing = false) {
   $('#settingsStatus').className = 'hint';
 }
 
-const APP_VERSION = '2026.10.15';
+const APP_VERSION = '2026.11.09';
 function initSettings() {
   renderThemeControls();
   $('#appVersion').textContent = APP_VERSION;
   $('#carNameInput').value = carName();
-  $('#huePicker').hidden = loadTheme().accent !== 'custom';
   renderConnection();
-  if (!$('#huePicker').hidden) requestAnimationFrame(updateHuePicker);
 }
 
 $('#carNameInput').addEventListener('change', async (e) => {
@@ -1830,7 +1836,7 @@ $('#mRangeSeg').addEventListener('click', (e) => {
   state.animate = false;
 });
 new IntersectionObserver((es) => { if (es.some((en) => en.isIntersecting)) loadMoreHistory(); },
-  { root: $('#historyPage'), rootMargin: '0px 0px 120px 0px' }).observe($('#loadMore'));
+  { root: $('#homeScroll'), rootMargin: '0px 0px 160px 0px' }).observe($('#loadMore'));
 
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-close]')) closeTop();
