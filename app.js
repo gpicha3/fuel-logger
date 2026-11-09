@@ -316,17 +316,17 @@ function renderHome(list) {
     { num: avg ? fmt(avg, 1) : '–', unit: t('unit.kml'), status: t('hero.kml'), sub: t('hero.year'), bar: null },
     { num: e.costKm ? fmt(e.costKm) : '–', unit: t('unit.bahtKm'), status: t('hero.costKm'), sub: t('hero.year'), bar: null },
   ];
-  const m = modes[state.hero] || modes[0];
-  $('#heroNum').textContent = m.num;
-  $('#heroUnit').textContent = m.unit;
-  $('#heroStatus').textContent = m.status;
-  const sub = m.bar != null && state.hero === 0 && !lowFuel
-    ? `${t('hero.fuelLeft', { pct: Math.round(Math.max(0, Math.min(1, m.bar)) * 100) })}${m.sub ? ` · ${m.sub}` : ''}` : m.sub;
-  $('#heroSub').textContent = sub;
-  const bar = $('#heroBar');
-  bar.hidden = m.bar == null;
-  bar.classList.toggle('low', lowFuel);
-  if (m.bar != null) $('i', bar).style.width = `${Math.max(0, Math.min(1, m.bar)) * 100}%`;
+  // สามหน้าที่ปัดซ้ายขวาได้: ระยะที่วิ่งได้ · กม./ล. · ฿/กม.
+  $('#heroTrack').innerHTML = modes.map((m, i) => {
+    const pct = m.bar != null ? Math.max(0, Math.min(1, m.bar)) : null;
+    const sub = i === 0 && pct != null && !lowFuel ? `${t('hero.fuelLeft', { pct: Math.round(pct * 100) })}${m.sub ? ` · ${m.sub}` : ''}` : m.sub;
+    return `<button type="button" class="hero-slide" data-i="${i}">
+      <span class="hero-top">${esc(m.status)}</span>
+      <span class="hero-value"><span class="hero-num">${esc(m.num)}</span><span class="hero-unit">${esc(m.unit)}</span></span>
+      <span class="hero-bar${lowFuel && i === 0 ? ' low' : ''}${pct == null ? ' none' : ''}"><i style="width:${(pct ?? 0) * 100}%"></i></span>
+      <span class="hero-sub">${esc(sub || '')}</span>
+    </button>`;
+  }).join('');
   $$('#heroDots i').forEach((d, i) => d.classList.toggle('on', i === state.hero));
   // การ์ดสเปก: เลขไมล์ (แตะเพื่ออัปเดต) · เติมล่าสุด · ชนิดน้ำมัน
   if (e.odo) {
@@ -345,13 +345,28 @@ function renderHome(list) {
   $('#tilePrice').innerHTML = price ? `${fmt(price)} <small>฿</small>` : '–';
 }
 
-$('#hero').addEventListener('click', () => {
-  state.hero = (state.hero + 1) % 3;
-  store.set(KEYS.hero, state.hero);
-  const el = $('#hero');
-  el.classList.remove('flip'); void el.offsetWidth; el.classList.add('flip');
-  renderHome(entries());
+// ปัดตัวเลขใหญ่ซ้ายขวา: จำหน้าที่ดูล่าสุด · แตะเพื่อไปหน้าถัดไป
+const heroTrack = $('#heroTrack');
+// ระยะเลื่อนต่อหน้า = ความกว้างของแถบ (หน้า 100% + ช่องว่างเท่ากับ padding สองข้าง)
+const heroStep = () => heroTrack.clientWidth;
+let heroT;
+heroTrack.addEventListener('scroll', () => {
+  const i = Math.round(heroTrack.scrollLeft / Math.max(1, heroStep()));
+  $$('#heroDots i').forEach((d, k) => d.classList.toggle('on', k === i));
+  clearTimeout(heroT);
+  heroT = setTimeout(() => { if (state.hero !== i) { state.hero = i; store.set(KEYS.hero, i); } }, 120);
+}, { passive: true });
+heroTrack.addEventListener('click', (e) => {
+  const slide = e.target.closest('.hero-slide');
+  if (!slide) return;
+  const next = (+slide.dataset.i + 1) % 3;
+  heroTrack.scrollTo({ left: next * heroStep(), behavior: reduceMotion ? 'auto' : 'smooth' });
 });
+$('#heroDots').addEventListener('click', (e) => {
+  const k = $$('#heroDots i').indexOf(e.target);
+  if (k >= 0) heroTrack.scrollTo({ left: k * heroStep(), behavior: reduceMotion ? 'auto' : 'smooth' });
+});
+
 
 function inRange(list) {
   const withRate = list.filter((r) => r.rate != null && Number.isFinite(r.rate));
@@ -391,7 +406,7 @@ function renderChart(list) {
   const el = $('#chart');
   const pts = inRange(list);
   const types = [...new Set(pts.map((p) => p.type))];
-  $('#legend').innerHTML = types.map((ty) => `<span class="${typeClass(ty)}">${esc(ty)}</span>`).join('');
+  $('#legend').innerHTML = '';
   const W = el.clientWidth || 320, H = el.clientHeight || 240;
   const pad = { l: 34, r: 10, t: 34, b: 26 };
   const avg = average(list, pts);
@@ -426,10 +441,11 @@ function renderChart(list) {
   const line = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.mileage).toFixed(1)},${Y(p.rate).toFixed(1)}`).join('');
   const area = `${line}L${X(xMax)},${Y(0)}L${X(xMin)},${Y(0)}Z`;
   const dots = pts.length <= 40
-    ? pts.map((p, i) => `<circle class="dot ${typeClass(p.type)}${anim ? ' pop' : ''}" style="--i:${i}" cx="${X(p.mileage)}" cy="${Y(p.rate)}" r="3.5"/>`).join('') : '';
+    ? pts.map((p, i) => `<circle class="dot${anim ? ' pop' : ''}${i === pts.length - 1 ? ' last' : ''}" style="--i:${i}" cx="${X(p.mileage)}" cy="${Y(p.rate)}" r="${i === pts.length - 1 ? 4.5 : 3}"/>`).join('') : '';
   const avgLine = avg ? `<line class="avg" x1="${pad.l}" x2="${W - pad.r}" y1="${Y(avg)}" y2="${Y(avg)}"/>` : '';
 
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('chart.rate'))}">
+      <defs><linearGradient id="rateFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="fill-top-stop"/><stop offset="1" class="fill-bottom-stop"/></linearGradient></defs>
       ${grid}${avgLine}<path class="area${anim ? ' draw' : ''}" d="${area}"/><path class="line" d="${line}"/>${dots}
       <line class="cursor" y1="${pad.t}" y2="${H - pad.b}" visibility="hidden"/>
       <circle class="dot active" r="5" visibility="hidden"/>
@@ -472,7 +488,7 @@ const WEEKDAYS = { th: ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', '�
 function monthHeader(r) {
   const k = monthKey(r.d);
   const items = historyAll.filter((x) => x.d && monthKey(x.d) === k);
-  return `<li class="h-month"><b>${fmtMonthLong(r.d)}</b><span>${esc(t('m.fills', { n: items.length }))} · ฿${fmtInt(sumBy(items, (x) => x.price))}</span></li>`;
+  return `<li class="h-month" data-k="${k}"><b>${fmtMonthLong(r.d)}</b><span>${esc(t('m.fills', { n: items.length }))} · ฿${fmtInt(sumBy(items, (x) => x.price))}</span></li>`;
 }
 
 function historyRow(r, i, enterIdx) {
@@ -532,13 +548,15 @@ function renderHistorySummary(list) {
     const ys = pts.map((p) => p.rate), lo = Math.min(...ys), hi = Math.max(...ys);
     const X = (i) => (i / (pts.length - 1)) * 100, Y = (v) => 34 - ((v - lo) / (hi - lo || 1)) * 30;
     const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.rate).toFixed(1)}`).join('');
-    spark = `<svg class="spark" viewBox="0 0 100 38" preserveAspectRatio="none"><path d="${d}L100,38L0,38Z" class="spark-area"/><path d="${d}" class="spark-line"/></svg>`;
+    spark = `<div class="spark-wrap"><svg class="spark" viewBox="0 0 100 38" preserveAspectRatio="none"><defs><linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="fill-top-stop"/><stop offset="1" class="fill-bottom-stop"/></linearGradient></defs><path d="${d}L100,38L0,38Z" class="spark-area"/><path d="${d}" class="spark-line"/></svg>`
+      + `<i class="spark-end" style="top:${(Y(pts.at(-1).rate) / 38) * 100}%"></i></div>`
+      + `<div class="spark-x"><span>${fmtDate(pts[0].d)}</span><span>${fmt(pts.at(-1).rate, 1)} ${esc(t('unit.kml.short'))}</span></div>`;
   }
   el.innerHTML = `
     <div class="hs-stats">
-      <div><b>${list.length}</b><span>${esc(t('yr.fills'))}</span></div>
-      <div><b>${fmtInt(sumBy(list, (r) => r.liters))}</b><span>${esc(t('unit.liters'))}</span></div>
-      <div><b>฿${fmtInt(sumBy(list, (r) => r.price))}</b><span>${esc(t('hs.total'))}</span></div>
+      <div><span>${esc(t('yr.fills'))}</span><b>${list.length}</b></div>
+      <div><span>${esc(t('unit.liters'))}</span><b>${fmtInt(sumBy(list, (r) => r.liters))}</b></div>
+      <div><span>${esc(t('hs.total'))}</span><b>฿${fmtInt(sumBy(list, (r) => r.price))}</b></div>
     </div>
     ${spark ? `<div class="hs-spark"><span>${esc(t('hs.trend'))}</span>${spark}</div>` : ''}`;
 }
@@ -617,7 +635,7 @@ function renderMonthly(list) {
   const top = Math.max(1, ...withData.map((m) => m.total));
   const anim = state.animate && !reduceMotion;
   $('#mList').innerHTML = withData.map((m, i) => `
-    <li${anim && i < 12 ? ` class="enter" style="--i:${i}"` : ''}>
+    <li class="m-row${anim && i < 12 ? ' enter' : ''}" data-k="${m.k}"${anim && i < 12 ? ` style="--i:${i}"` : ''} role="button" tabindex="0">
       <div class="h-main">${fmtMonthLong(m.d)}${m.k === nowK ? `<span class="badge">${esc(t('m.thisMonth'))}</span>` : ''}${max && m.k === max.k ? `<span class="badge t-prem">${esc(t('m.highest'))}</span>` : ''}</div>
       <div class="h-rate">฿${fmtInt(m.total)}</div>
       <div class="h-sub">${esc(t('m.fills', { n: m.count }))} · ${fmt(m.liters)} ${esc(t('unit.liters'))}${m.dist ? ` · ~${fmtInt(m.dist)} ${esc(t('unit.km'))}` : ''}</div>
@@ -675,6 +693,28 @@ function renderMonthlyChart(months, maxMonth) {
   svg.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'mouse') pick(e.clientX); });
   svg.addEventListener('pointerleave', () => { tip.hidden = true; $$('.bar', svg).forEach((b) => b.classList.remove('sel')); });
 }
+
+// แตะเดือนในสรุปรายเดือน → ไปหน้าประวัติที่เดือนนั้น
+function goToMonth(k) {
+  if (currentTab !== 'history') switchTab('history');
+  const idx = historyAll.findIndex((r) => r.d && monthKey(r.d) === k);
+  if (idx < 0) return;
+  if (idx >= historyItems.length) {
+    state.shown = idx + PAGE_SIZE;
+    renderHistory(entries(), { reset: true });
+  }
+  const head = $(`#history .h-month[data-k="${k}"]`);
+  if (!head) return;
+  setTimeout(() => {
+    const sc = $('#homeScroll');
+    sc.scrollTo({ top: head.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 8, behavior: reduceMotion ? 'auto' : 'smooth' });
+    head.classList.remove('flash'); void head.offsetWidth; head.classList.add('flash');
+  }, 40);
+}
+$('#mList').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-k]');
+  if (li) goToMonth(+li.dataset.k);
+});
 
 /* ---------- ผ่อนรถ ---------- */
 async function loadLoan() {
@@ -938,8 +978,10 @@ const ICON = {"wrench": "M21.7 6.3a1 1 0 0 0-1.6-.3l-2.7 2.7-2.1-.5-.5-2.1 2.7-2
 const svgIc = (k) => `<svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="${ICON[k]}"/></svg>`;
 const EXP_CATS = ['Service', 'Repair', 'Wash', 'Toll', 'Parking', 'Other'];
 const CAT_STYLE = {
-  Service: ['wrench', '#ff9f0a'], Repair: ['gear', '#ff453a'], Wash: ['drop', '#0a84ff'],
-  Toll: ['toll', '#30d158'], Parking: ['parking', '#5e5ce6'], Other: ['dots', '#8e8e93'],
+  // สีหมวดไล่จากสีเข้มไปพาสเทลของชุดสีที่เลือก (น้ำมันใช้สีเข้มสุด)
+  Service: ['wrench', 'color-mix(in srgb, var(--accent) 78%, var(--pastel))'], Repair: ['gear', 'color-mix(in srgb, var(--accent) 60%, var(--pastel))'],
+  Wash: ['drop', 'color-mix(in srgb, var(--accent) 44%, var(--pastel))'], Toll: ['toll', 'color-mix(in srgb, var(--accent) 30%, var(--pastel))'],
+  Parking: ['parking', 'color-mix(in srgb, var(--accent) 16%, var(--pastel))'], Other: ['dots', 'var(--pastel)'],
 };
 const REM_STYLE = { service: ['wrench', '#ff9f0a'], taxDue: ['doc', '#0a84ff'], insuranceDue: ['shield', '#30d158'], actDue: ['idcard', '#bf5af2'] };
 const RENEWALS = [['taxDue', 'rem.tax'], ['insuranceDue', 'rem.insurance'], ['actDue', 'rem.act']];
@@ -1060,22 +1102,28 @@ function renderCare(list) {
   const grand = sumBy(parts, ([, v]) => v);
   const anim = state.animate && !reduceMotion;
 
-  const tile = (r, i) => {
+  const svc = rem.find((r) => r.key === 'service');
+  const others = rem.filter((r) => r.key !== 'service');
+  const svcPct = Math.max(0, Math.min(1, svc.pct || 0));
+  const row = (r) => {
     const [ik, color] = REM_STYLE[r.key] || ['doc', '#8e8e93'];
-    const pct = Math.max(0, Math.min(1, r.pct || 0));
     return `
-      <div class="rem-tile${r.urgent ? ' urgent' : ''}${r.big == null ? ' unset' : ''}${anim ? ' enter' : ''}" style="--c:${color};--i:${i}">
-        <div class="rt-head"><span class="set-ic">${svgIc(ik)}</span><b>${esc(r.label)}</b></div>
-        ${r.big != null ? `<div class="rt-big">${r.overdue ? '−' : ''}${esc(r.big)}<small> ${esc(r.unit)}</small></div>` : `<div class="rt-big none">–</div>`}
-        <div class="rt-sub">${esc(r.big != null ? (r.overdue ? r.due : r.value) : t('rem.notSet'))}</div>
-        <div class="rt-bar"><i style="width:${pct * 100}%"></i></div>
-        ${r.renew ? `<button class="rt-renew" data-renew="${r.key}">${esc(t('rem.renewed'))}</button>` : ''}
+      <div class="lc-row${r.urgent ? ' urgent' : ''}" style="--c:${color}">
+        <span class="lc-ic">${svgIc(ik)}</span>
+        <span class="lc-text"><b>${esc(r.label)}</b><small>${esc(r.big != null ? r.value : t('rem.notSet'))}</small></span>
+        ${r.renew ? `<button class="lc-renew" data-renew="${r.key}">${esc(t('rem.renewed'))}</button>` : ''}
+        ${r.big != null ? `<span class="lc-due">${r.overdue ? '−' : ''}${esc(r.big)}<small> ${esc(r.unit)}</small></span>` : ''}
       </div>`;
   };
 
   body.innerHTML = `
-    <div class="care-head"><h2>${esc(t('care.reminders'))}</h2><button class="text-link" data-open="careSettings">${esc(t('rem.edit'))}</button></div>
-    <div class="rem-grid">${rem.map(tile).join('')}</div>
+    <section class="care-hero${svc.urgent ? ' urgent' : ''}${anim ? ' enter' : ''}">
+      <div class="care-hero-top"><span>${esc(svc.label)}</span><button class="text-link" data-open="careSettings">${esc(t('rem.edit'))}</button></div>
+      ${svc.big != null ? `<div class="care-big">${svc.overdue ? '−' : ''}${esc(svc.big)}<small> ${esc(svc.unit)}</small></div>` : '<div class="care-big none">–</div>'}
+      <div class="care-bar"><i style="width:${svcPct * 100}%"></i></div>
+      <div class="care-sub">${esc(svc.big != null ? (svc.overdue ? svc.due : svc.value) : t('rem.notSet'))}</div>
+    </section>
+    <div class="list-card">${others.map(row).join('')}</div>
 
     <section class="cost-card">
       <div class="cost-top"><span>${esc(t('care.costYear', { y: LANG === 'th' ? y + 543 : y }))}</span><b>฿${fmtInt(grand)}</b></div>
@@ -1129,7 +1177,8 @@ function initExpenseForm() {
   expForm.date.value = isoToday();
   const e = estimate(entries());
   expForm.mileage.placeholder = e.odo ? fmtInt(e.odo) : '';
-  $('#catChips').innerHTML = EXP_CATS.map((c) => `<button type="button" class="chip" data-cat="${c}">${esc(t(`cat.${c}`))}</button>`).join('');
+  $('#catChips').innerHTML = EXP_CATS.map((c) => `<button type="button" class="type-pill chip" data-cat="${c}" style="--t:${CAT_STYLE[c][1]}"><i></i>${esc(t(`cat.${c}`))}</button>`).join('');
+  fitAmount(expForm.amount);
   setExpCat('Service');
   setTimeout(() => expForm.amount.focus(), 450);
 }
@@ -1144,7 +1193,7 @@ function updateExpForm() {
   $('#expSaveBtn').disabled = !(expForm.date.value && Number.isFinite(amount) && amount >= 0 && (!expForm.mileage.value || km > 0));
 }
 $('#catChips').addEventListener('click', (e) => { const b = e.target.closest('[data-cat]'); if (b) setExpCat(b.dataset.cat); });
-expForm.addEventListener('input', updateExpForm);
+expForm.addEventListener('input', (e) => { if (e.target.name === 'amount') fitAmount(e.target); updateExpForm(); });
 expForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!state.setup) { toast(t('t.notConnected')); return; }
@@ -1264,6 +1313,7 @@ const TAB_OF = { economy: 'stats', historyPage: 'history', monthly: 'stats', yea
 
 /* ---------- แท็บ ---------- */
 let currentTab = 'home';
+const TABS = ['home', 'history', 'stats', 'car'];
 const TAB_RENDER = {
   history: () => renderHistory(entries(), { reset: true }),
   stats: () => { const l = entries(); renderStats(l); renderChart(l); renderMonthly(l); renderCompare(l); renderYear(l); },
@@ -1272,6 +1322,7 @@ const TAB_RENDER = {
 function switchTab(id) {
   const scroller = $('#homeScroll');
   if (id === currentTab) { scroller.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }); return; }
+  const dir = TABS.indexOf(id) > TABS.indexOf(currentTab) ? 1 : -1;
   currentTab = id;
   $$('.view').forEach((v) => { v.hidden = v.id !== `view-${id}`; });
   $$('#tabs [data-tab]').forEach((b) => {
@@ -1279,17 +1330,69 @@ function switchTab(id) {
     b.classList.toggle('active', on);
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
+  placeGlider();
   scroller.scrollTop = 0;
   const view = $(`#view-${id}`);
+  view.style.setProperty('--dir', dir);
   view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter');
   state.animate = true;
   TAB_RENDER[id]?.();
   state.animate = false;
 }
-$('#tabs').addEventListener('click', (e) => {
+// แถบไฮไลท์แบบหยดกระจก: เลื่อนไปที่แท็บที่เลือก ลากด้วยนิ้วได้ ปล่อยแล้วไปแท็บที่อยู่ใต้นิ้ว
+const tabsEl = $('#tabs');
+const glider = $('#tabGlider');
+function placeGlider() {
+  const b = $('#tabs button.active');
+  if (!b) return;
+  glider.style.width = `${b.offsetWidth}px`;
+  glider.style.transform = `translateX(${b.offsetLeft}px)`;
+}
+let navDrag = null;
+let navDragged = false;
+tabsEl.addEventListener('pointerdown', (e) => {
+  navDragged = false;
+  navDrag = { x: e.clientX, id: e.pointerId, started: false };
+});
+tabsEl.addEventListener('pointermove', (e) => {
+  if (!navDrag || e.pointerId !== navDrag.id) return;
+  if (!navDrag.started) {
+    if (Math.abs(e.clientX - navDrag.x) < 6) return;
+    navDrag.started = true;
+    navDragged = true;
+    try { tabsEl.setPointerCapture(e.pointerId); } catch { /* pointer ไม่อยู่แล้ว */ }
+    tabsEl.classList.add('dragging');
+  }
+  const rect = tabsEl.getBoundingClientRect();
+  const w = glider.offsetWidth;
+  const x = Math.max(5, Math.min(rect.width - w - 5, e.clientX - rect.left - w / 2));
+  glider.style.transform = `translateX(${x}px)`;
+  const over = $$('#tabs [data-tab]').reduce((best, b) => {
+    const c = b.getBoundingClientRect(), d = Math.abs(c.left + c.width / 2 - e.clientX);
+    return !best || d < best.d ? { b, d } : best;
+  }, null);
+  $$('#tabs [data-tab]').forEach((b) => b.classList.toggle('over', b === over.b));
+});
+const endNavDrag = (e) => {
+  if (!navDrag) return;
+  const started = navDrag.started;
+  navDrag = null;
+  if (!started) return;
+  tabsEl.classList.remove('dragging');
+  const over = $('#tabs .over');
+  $$('#tabs [data-tab]').forEach((b) => b.classList.remove('over'));
+  if (over && over.dataset.tab !== currentTab) switchTab(over.dataset.tab);
+  else placeGlider();
+};
+tabsEl.addEventListener('pointerup', endNavDrag);
+tabsEl.addEventListener('pointercancel', endNavDrag);
+tabsEl.addEventListener('click', (e) => {
+  if (navDragged) { navDragged = false; return; }
   const b = e.target.closest('[data-tab]');
   if (b) switchTab(b.dataset.tab);
 });
+
+const usesBackdrop = (sheet) => sheet.classList.contains('sheet-bottom') || sheet.classList.contains('fill-sheet');
 
 function open(id) {
   if (TAB_OF[id]) { closeSheets(); switchTab(TAB_OF[id]); return; }
@@ -1308,8 +1411,9 @@ function open(id) {
     el.classList.remove('unpushed', 'uncovered');
     el.classList.add(below ? 'covered' : 'pushed');
   }
-  if (sheet.classList.contains('sheet-bottom')) {
+  if (usesBackdrop(sheet)) {
     const bd = $('#backdrop');
+    clearTimeout(bd.hideT);
     bd.style.zIndex = 9 + stack.length * 2;
     bd.classList.remove('closing');
     bd.hidden = false;
@@ -1323,8 +1427,15 @@ function closeTop({ instant = false } = {}) {
   document.activeElement?.blur?.();
   const below = topSheet();
   if (instant) {
-    // ปิดหลังจากปัดย้อนกลับ: animation ทำไปแล้วด้วยนิ้ว
+    // ปิดหลังจากปัดย้อนกลับ/ปัดลง: animation ทำไปแล้วด้วยนิ้ว
+    if (usesBackdrop(sheet)) {
+      const bd = $('#backdrop');
+      clearTimeout(bd.hideT);
+      bd.classList.add('closing');
+      bd.hideT = setTimeout(() => { bd.hidden = true; bd.classList.remove('closing'); bd.style.opacity = ''; }, 250);
+    }
     sheet.hidden = true;
+    sheet.style.transform = '';
     sheet.classList.remove('opening', 'closing');
     const el = below || $('.shell');
     el.classList.remove('covered', 'pushed', 'uncovered', 'unpushed');
@@ -1345,10 +1456,11 @@ function closeTop({ instant = false } = {}) {
       setTimeout(() => el.classList.remove('uncovered', 'unpushed'), 330);
     }
   }
-  if (sheet.classList.contains('sheet-bottom')) {
+  if (usesBackdrop(sheet)) {
     const bd = $('#backdrop');
     bd.classList.add('closing');
-    setTimeout(() => { bd.hidden = true; bd.classList.remove('closing'); }, 250);
+    clearTimeout(bd.hideT);
+    bd.hideT = setTimeout(() => { bd.hidden = true; bd.classList.remove('closing'); }, 250);
   }
   sheet.classList.remove('opening');
   sheet.classList.add('closing');
@@ -1484,8 +1596,7 @@ function updateForm() {
 }
 
 // ช่องยอดเงินตัวใหญ่: ความกว้างตามจำนวนตัวอักษร ให้ ฿ ชิดตัวเลข
-function fitAmount() {
-  const el = form.price;
+function fitAmount(el = form.price) {
   el.style.width = `${Math.max(1, (el.value || el.placeholder).length) + 0.6}ch`;
 }
 form.addEventListener('input', (e) => {
@@ -1618,6 +1729,7 @@ $('#langSeg').addEventListener('click', (e) => {
   const b = e.target.closest('[data-lang]');
   if (!b || b.dataset.lang === LANG) return;
   setLang(b.dataset.lang);
+  requestAnimationFrame(placeGlider);
   renderThemeControls();
   renderConnection();
   render();
@@ -1795,6 +1907,47 @@ document.addEventListener('touchend', () => {
   }
 });
 
+// ปัดลงเพื่อปิดแผ่นด้านล่างและฟอร์ม (เริ่มจากส่วนหัว หรือจากที่ไหนก็ได้ถ้าเนื้อหาอยู่บนสุด)
+let down = null;
+document.addEventListener('touchstart', (e) => {
+  const sheet = topSheet();
+  if (!sheet || !usesBackdrop(sheet) || e.touches.length > 1) return;
+  if (!sheet.contains(e.target) || e.target.closest('input, textarea, .type-pills, .kind-seg')) return;
+  const onHead = e.target.closest('.grabber, .fill-top, .sheet-bottom > h2');
+  if (!onHead && sheet.scrollTop > 0) return;
+  down = { sheet, y: e.touches[0].clientY, t: performance.now(), dy: 0, started: false };
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  if (!down) return;
+  const dy = e.touches[0].clientY - down.y;
+  if (!down.started) {
+    if (dy < 8) { if (dy < -4) down = null; return; }
+    down.started = true;
+    down.sheet.classList.remove('opening');
+    down.sheet.style.transition = 'none';
+  }
+  down.dy = Math.max(0, dy);
+  down.sheet.style.transform = `translateY(${down.dy}px)`;
+  $('#backdrop').style.opacity = String(Math.max(0, 1 - down.dy / 400));
+  e.preventDefault();
+}, { passive: false });
+document.addEventListener('touchend', () => {
+  if (!down) return;
+  const { sheet, dy, t: t0, started } = down;
+  down = null;
+  if (!started) return;
+  const ease = 'cubic-bezier(.22, 1, .36, 1)';
+  sheet.style.transition = `transform .3s ${ease}`;
+  if (dy > 120 || dy / Math.max(1, performance.now() - t0) > 0.6) {
+    sheet.style.transform = 'translateY(100%)';
+    setTimeout(() => { sheet.style.transition = ''; closeTop({ instant: true }); }, 280);
+  } else {
+    sheet.style.transform = '';
+    $('#backdrop').style.opacity = '';
+    setTimeout(() => { sheet.style.transition = ''; }, 300);
+  }
+});
+
 function resetPull(inner) {
   inner.style.transform = '';
   const ptrEl = $('#ptr');
@@ -1848,7 +2001,7 @@ window.addEventListener('online', () => state.pending.length && sync({ quiet: tr
 let resizeT;
 window.addEventListener('resize', () => {
   clearTimeout(resizeT);
-  resizeT = setTimeout(() => render({ keepHistory: true }), 150);
+  resizeT = setTimeout(() => { render({ keepHistory: true }); placeGlider(); heroTrack.scrollLeft = state.hero * heroStep(); }, 150);
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && state.setup) sync({ quiet: true });
@@ -1869,4 +2022,13 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 
 applyStaticI18n();
 render();
+requestAnimationFrame(() => {
+  // ตำแหน่งแรกของแถบไฮไลท์ไม่ต้องเลื่อน
+  glider.style.transition = 'none';
+  placeGlider();
+  void glider.offsetWidth;
+  glider.style.transition = '';
+  heroTrack.scrollLeft = state.hero * heroStep();
+});
+document.fonts?.ready.then(placeGlider);
 if (state.setup) sync({ quiet: true });

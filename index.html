@@ -49,12 +49,10 @@
             </span>
           </button>
 
-          <button class="hero" id="hero" type="button">
-            <span class="hero-top"><span id="heroStatus"></span><span class="hero-dots" id="heroDots"><i></i><i></i><i></i></span></span>
-            <span class="hero-value"><span class="hero-num" id="heroNum">–</span><span class="hero-unit" id="heroUnit"></span></span>
-            <span class="hero-bar" id="heroBar"><i></i></span>
-            <span class="hero-sub" id="heroSub"></span>
-          </button>
+          <div class="hero" id="hero">
+            <div class="hero-track" id="heroTrack"></div>
+            <div class="hero-dots" id="heroDots"><i></i><i></i><i></i></div>
+          </div>
 
           <div class="home-tiles">
             <div class="tile"><span data-i18n="tile.avg"></span><b id="tileAvg">–</b></div>
@@ -139,6 +137,7 @@
     <!-- แถบเมนูลอย + ปุ่มเพิ่ม -->
     <div class="dock">
       <nav class="tabs" id="tabs">
+        <i class="tab-glider" id="tabGlider" aria-hidden="true"></i>
         <button type="button" data-tab="home" class="active" aria-current="page"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/></svg><span data-i18n="nav.home"></span></button>
         <button type="button" data-tab="history"><svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg><span data-i18n="nav.history"></span></button>
         <button type="button" data-tab="stats"><svg viewBox="0 0 24 24"><path d="M5 20v-7M12 20V5M19 20v-10"/></svg><span data-i18n="nav.stats"></span></button>
@@ -149,23 +148,36 @@
   </div>
 
   <!-- ฟอร์มค่าใช้จ่ายอื่น -->
-  <section id="expenseForm" class="sheet sheet-rise" hidden>
-    <header class="topbar">
-      <button class="icon-btn" data-close data-i18n-aria="cancel"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
-      <h1 data-i18n="exp.title"></h1>
-      <span class="spacer"></span>
-    </header>
-    <div class="kind-seg" role="tablist"><button type="button" data-switch="form" data-i18n="q.add"></button><button type="button" class="active" data-i18n="exp.title"></button></div>
-    <form id="expForm" class="form" novalidate>
-      <label class="field"><span data-i18n="form.date"></span><input type="date" name="date" required></label>
-      <div class="field"><span data-i18n="exp.category"></span><div class="chips" id="catChips"></div></div>
-      <label class="field"><span data-i18n="exp.amount"></span><input type="text" name="amount" inputmode="decimal" autocomplete="off" required></label>
-      <label class="field"><span data-i18n="exp.mileage"></span><input type="text" name="mileage" inputmode="numeric" autocomplete="off"><small class="hint" id="expMileageHint"></small></label>
-      <label class="field"><span data-i18n="exp.note"></span><input type="text" name="note" autocomplete="off"></label>
-      <div class="form-actions">
-        <button type="button" class="btn ghost" data-close data-i18n="cancel"></button>
-        <button type="submit" class="btn primary" id="expSaveBtn" disabled data-i18n="save"></button>
+  <section id="expenseForm" class="sheet sheet-rise fill-sheet" hidden>
+    <header class="fill-top">
+      <div class="grabber" aria-hidden="true"></div>
+      <div class="fill-head">
+        <div class="kind-seg" role="tablist"><button type="button" data-switch="form" data-i18n="q.add"></button><button type="button" class="active" data-i18n="exp.title"></button></div>
+        <button class="close-x" type="button" data-close data-i18n-aria="cancel"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
       </div>
+    </header>
+    <form id="expForm" class="fill-form" novalidate>
+      <label class="amount">
+        <span class="amount-label" data-i18n="exp.amount"></span>
+        <span class="amount-input"><span class="currency">฿</span><input type="text" name="amount" inputmode="decimal" autocomplete="off" placeholder="0" required></span>
+      </label>
+      <div class="type-pills cat-pills" id="catChips" role="radiogroup"></div>
+      <div class="fill-cards">
+        <label class="fill-card">
+          <span class="fc-label" data-i18n="exp.mileage"></span>
+          <input type="text" name="mileage" inputmode="numeric" autocomplete="off">
+          <small class="hint" id="expMileageHint"></small>
+        </label>
+        <label class="fill-card">
+          <span class="fc-label" data-i18n="form.date"></span>
+          <input type="date" name="date" required>
+        </label>
+      </div>
+      <label class="fill-card">
+        <span class="fc-label" data-i18n="exp.note"></span>
+        <input type="text" name="note" autocomplete="off" class="note-input">
+      </label>
+      <button type="submit" class="save-btn" id="expSaveBtn" disabled data-i18n="save"></button>
     </form>
   </section>
 
@@ -228,19 +240,17 @@
   <section id="form" class="sheet sheet-rise fill-sheet" hidden>
     <header class="fill-top">
       <div class="grabber" aria-hidden="true"></div>
-      <div class="kind-seg" role="tablist"><button type="button" class="active" data-i18n="q.add"></button><button type="button" data-switch="expenseForm" data-i18n="exp.title"></button></div>
       <div class="fill-head">
-        <h1 data-i18n="form.title"></h1>
+        <div class="kind-seg" role="tablist"><button type="button" class="active" data-i18n="q.add"></button><button type="button" data-switch="expenseForm" data-i18n="exp.title"></button></div>
         <button class="close-x" type="button" data-close data-i18n-aria="cancel"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
       </div>
     </header>
     <form id="entryForm" class="fill-form" novalidate>
-      <div class="type-pills" id="typeChips" role="radiogroup"></div>
-
       <label class="amount">
         <span class="amount-label" data-i18n="form.price"></span>
         <span class="amount-input"><span class="currency">฿</span><input type="text" name="price" inputmode="decimal" autocomplete="off" placeholder="0" required></span>
       </label>
+      <div class="type-pills" id="typeChips" role="radiogroup"></div>
 
       <div class="fill-cards">
         <label class="fill-card">
@@ -267,20 +277,13 @@
   </section>
 
   <!-- รายละเอียด / ลบ -->
-  <section id="detail" class="sheet sheet-push" hidden>
-    <header class="topbar">
-      <button class="icon-btn" data-close data-i18n-aria="back">
-        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
-      </button>
-      <h1 data-i18n="detail.title"></h1>
-      <span class="spacer"></span>
-    </header>
-    <div class="form">
-      <div id="detailBody" class="detail"></div>
-      <p class="hint" data-i18n="detail.hint"></p>
-      <div class="form-actions">
-        <button type="button" class="btn danger" id="deleteBtn" data-i18n="detail.delete"></button>
-      </div>
+  <section id="detail" class="sheet sheet-bottom" hidden>
+    <div class="grabber" aria-hidden="true"></div>
+    <h2 data-i18n="detail.title"></h2>
+    <div id="detailBody" class="detail"></div>
+    <p class="hint" data-i18n="detail.hint"></p>
+    <div class="form-actions">
+      <button type="button" class="btn danger" id="deleteBtn" data-i18n="detail.delete"></button>
     </div>
   </section>
 
