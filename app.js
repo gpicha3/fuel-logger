@@ -531,13 +531,28 @@ function renderHistory(list, { reset = false } = {}) {
   historyAvg = rated.length ? sumBy(rated, (r) => r.rate) / rated.length : null;
   historyItems = historyAll;
   renderHistorySummary(list);
-  // การ์ดของแต่ละรอบเดือน (ใหม่ → เก่า) แสดงเฉพาะรอบที่มีการเติม และรอบปัจจุบัน
+  // การ์ดของแต่ละรอบเดือน (ใหม่ → เก่า) แยกตามปี แสดงเฉพาะรอบที่มีการเติม และรอบปัจจุบัน
   const nowK = cycleKey(new Date());
-  const months = monthlyData(list).reverse().filter((m) => m.count || m.k === nowK);
-  const top = Math.max(1, ...months.map((m) => m.total));
-  const anim = state.animate && !reduceMotion;
-  $('#history').innerHTML = months.map((m, i) => `
-    <li class="cycle-card${anim && i < 12 ? ' enter' : ''}" style="--i:${i}">
+  historyMonths = monthlyData(list).reverse().filter((m) => m.count || m.k === nowK);
+  const years = [...new Set(historyMonths.map((m) => m.d.getFullYear()))];
+  if (!years.includes(historyYear)) historyYear = years[0] ?? null;
+  const yLabel = (y) => (LANG === 'th' ? y + 543 : y);
+  $('#historyYears').innerHTML = years.map((y) => `<button type="button" data-year="${y}" class="${y === historyYear ? 'active' : ''}">${yLabel(y)}</button>`).join('');
+  $('#historyYears').hidden = years.length < 2;
+  historyShown = CYCLES_FIRST;
+  renderCycleCards(state.animate && !reduceMotion);
+}
+
+// ทีละ 3 รอบ: เลื่อนลงจนสุดแล้วค่อยโหลดรอบถัดไป
+const CYCLES_FIRST = 3;
+let historyMonths = [];
+let historyYear = null;
+let historyShown = CYCLES_FIRST;
+const yearCycles = () => historyMonths.filter((m) => m.d.getFullYear() === historyYear);
+
+function cycleCard(m, i, anim, top, nowK) {
+  return `
+    <li class="cycle-card${anim ? ' enter' : ''}" style="--i:${i}">
       <button type="button" data-k="${m.k}"${m.count ? '' : ' disabled'}>
         <span class="cc-main">
           <b>${esc(cycleName(m.k))}${m.k === nowK ? `<em>${esc(t('m.thisMonth'))}</em>` : ''}</b>
@@ -547,8 +562,44 @@ function renderHistory(list, { reset = false } = {}) {
         <svg class="cc-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
         <span class="cc-bar"><i style="width:${(m.total / top) * 100}%"></i></span>
       </button>
-    </li>`).join('') || `<li class="empty-state">${esc(t('history.empty'))}</li>`;
+    </li>`;
 }
+
+function renderCycleCards(anim, from = 0) {
+  const all = yearCycles();
+  const top = Math.max(1, ...historyMonths.map((m) => m.total));
+  const nowK = cycleKey(new Date());
+  const html = all.slice(from, historyShown).map((m, i) => cycleCard(m, i, anim, top, nowK)).join('');
+  if (from) $('#history').insertAdjacentHTML('beforeend', html);
+  else $('#history').innerHTML = html || `<li class="empty-state">${esc(t('history.empty'))}</li>`;
+  $('#loadMore').hidden = historyShown >= all.length;
+}
+
+let loadingCycles = false;
+function loadMoreCycles() {
+  if (loadingCycles || historyShown >= yearCycles().length || currentTab !== 'history') return;
+  loadingCycles = true;
+  setTimeout(() => {
+    const from = historyShown;
+    historyShown += CYCLES_FIRST;
+    renderCycleCards(!reduceMotion, from);
+    loadingCycles = false;
+  }, 450);
+}
+// โหลดเพิ่มเมื่อผู้ใช้เลื่อนลงจนสุดเท่านั้น (ไม่โหลดเองตอนเปิดหน้า)
+$('#homeScroll').addEventListener('scroll', (e) => {
+  const sc = e.currentTarget;
+  if (currentTab === 'history' && !$('#loadMore').hidden && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 24) loadMoreCycles();
+}, { passive: true });
+$('#loadMore').addEventListener('click', loadMoreCycles);
+$('#historyYears').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-year]');
+  if (!b || +b.dataset.year === historyYear) return;
+  historyYear = +b.dataset.year;
+  $$('#historyYears button').forEach((x) => x.classList.toggle('active', x === b));
+  historyShown = CYCLES_FIRST;
+  renderCycleCards(!reduceMotion);
+});
 
 // หน้ารายการเติมน้ำมันของรอบเดือน
 let monthItems = [];
