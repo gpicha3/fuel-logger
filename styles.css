@@ -834,7 +834,7 @@ button.spec:active { transform: scale(.95); }
   content: ""; position: absolute; left: -4%; right: 7%; bottom: 1%; height: 9%; border-radius: 50%;
   background: radial-gradient(closest-side, var(--car-shadow), transparent); filter: blur(5px); pointer-events: none;
 }
-.car { position: absolute; z-index: 1; right: 3%; bottom: 4%; width: 99%; aspect-ratio: 1400 / 702; animation: fade-in .8s ease-out both; }
+.car { position: absolute; z-index: 1; left: 3%; bottom: 4%; width: 94%; aspect-ratio: 1400 / 702; animation: fade-in .8s ease-out both; }
 .car-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 .car-stage:active .car { transform: scale(.98); transition: transform .15s; }
 .lamp { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; opacity: 0; mix-blend-mode: screen;
@@ -928,7 +928,7 @@ button.spec:active { transform: scale(.95); }
 .swatch.active { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--sw-ring); }
 
 /* ================= รอบ 2: รายละเอียดให้เข้าธีม ================= */
-.car-stage::after { left: -3%; right: 9%; }
+.car-stage::after { left: 4%; right: 5%; }
 
 /* ---------- แถบเมนูกระจก + แถบไฮไลท์ที่ลากได้ ---------- */
 .tabs {
