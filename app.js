@@ -2189,4 +2189,23 @@ requestAnimationFrame(() => {
   heroTrack.scrollLeft = state.hero * heroStep();
 });
 document.fonts?.ready.then(placeGlider);
-if (state.setup) sync({ quiet: true });
+
+// หน้า loading แบบ skeleton: แสดงอย่างน้อยครู่หนึ่ง แล้วจางเข้าหน้าจริง
+// ถ้ามีข้อมูลในเครื่องแล้วไม่ต้องรอ Sheet / ถ้ายังไม่มี (เพิ่งเชื่อม) รอซิงก์ครั้งแรก ไม่เกิน 8 วินาที
+const SKELETON_MIN = 600;
+const skeletonStart = performance.now();
+function hideSkeleton() {
+  const sk = $('#skeleton');
+  if (!sk || sk.classList.contains('done')) return;
+  setTimeout(() => {
+    sk.classList.add('done');
+    setTimeout(() => sk.remove(), 450);
+  }, Math.max(0, SKELETON_MIN - (performance.now() - skeletonStart)));
+}
+if (state.setup && !state.rows.length) {
+  sync({ quiet: true }).finally(hideSkeleton);
+  setTimeout(hideSkeleton, 8000);
+} else {
+  hideSkeleton();
+  if (state.setup) sync({ quiet: true });
+}

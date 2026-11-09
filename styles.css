@@ -1218,3 +1218,32 @@ input, textarea { background: var(--surface); border: 0; border-radius: 16px; }
 .year-tabs button { flex: 1 0 auto; min-width: 64px; padding: 7px 12px; font-size: 14px; font-weight: 600; color: var(--muted); border: 0; border-radius: 999px; }
 .year-tabs > .seg-glider { top: 4px; bottom: 4px; }
 #view-history .load-more { padding: 18px 0 6px; }
+
+/* ---------- หน้า loading (skeleton) ---------- */
+.skeleton {
+  position: absolute; inset: 0; z-index: 4; background: var(--bg); overflow: hidden;
+  transition: opacity .4s var(--ease-out);
+}
+.skeleton.done { opacity: 0; pointer-events: none; }
+.sk-inner {
+  max-width: 672px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px;
+  padding: calc(env(safe-area-inset-top) + 18px) 20px 0;
+}
+.sk {
+  display: block; border-radius: 12px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--text) 8%, var(--bg)) 25%, color-mix(in srgb, var(--text) 3%, var(--bg)) 50%, color-mix(in srgb, var(--text) 8%, var(--bg)) 75%) 0 0 / 200% 100%;
+  animation: sk-shimmer 1.2s linear infinite;
+}
+@keyframes sk-shimmer { to { background-position: -200% 0; } }
+.sk-brand { width: 70px; height: 14px; border-radius: 7px; }
+.sk-title { width: 72%; height: 32px; border-radius: 10px; }
+.sk-row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+.sk-row3 .sk { height: 54px; border-radius: 16px; }
+.sk-car { width: 100%; aspect-ratio: 100 / 46; margin: 26px 0 18px; border-radius: 28px; }
+.sk-label { width: 40%; height: 14px; border-radius: 7px; }
+.sk-num { width: 46%; height: 46px; border-radius: 12px; }
+.sk-bar { width: 100%; height: 8px; border-radius: 4px; }
+.sk-sub { width: 58%; height: 13px; border-radius: 7px; }
+.sk-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.sk-row2 .sk { height: 74px; border-radius: 20px; }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
