@@ -41,13 +41,13 @@
             <div class="spec"><span data-i18n="spec.fuel"></span><b id="specType">–</b></div>
           </div>
 
-          <button class="car-stage" id="carStage" type="button" data-i18n-aria="car.tap">
+          <div class="car-stage" id="carStage" aria-hidden="true">
             <span class="car" id="car">
               <img class="car-img" src="img/car.png" alt="" width="1400" height="702" draggable="false">
               <span class="lamp head-l" aria-hidden="true"></span>
               <span class="lamp head-r" aria-hidden="true"></span>
             </span>
-          </button>
+          </div>
 
           <div class="hero" id="hero">
             <div class="hero-track" id="heroTrack"></div>
@@ -65,17 +65,29 @@
         <!-- ประวัติ -->
         <section class="view" id="view-history" hidden>
           <header class="view-head"><h1 data-i18n="nav.history"></h1><small id="historySub"></small></header>
-          <section class="hs-card" id="historySummary"></section>
-          <section>
-            <ul id="history" class="fill-list"></ul>
-            <div id="loadMore" class="load-more" hidden><span class="spinner"></span></div>
-          </section>
+          <div class="segmented glide subtabs" data-sub="history" role="tablist">
+            <button type="button" class="active" data-pane="fuel" data-i18n="sub.fuel"></button>
+            <button type="button" data-pane="expenses" data-i18n="sub.expenses"></button>
+          </div>
+          <div class="pane" data-pane="fuel">
+            <section class="hs-card" id="historySummary"></section>
+            <ul id="history" class="cycle-list"></ul>
+            <div id="loadMore" hidden></div>
+          </div>
+          <div class="pane" data-pane="expenses" hidden>
+            <div id="expBody"></div>
+          </div>
         </section>
 
         <!-- สถิติ: อัตราสิ้นเปลือง · ค่าน้ำมันรายเดือน · สรุปรายปี -->
         <section class="view" id="view-stats" hidden>
           <header class="view-head"><h1 data-i18n="nav.stats"></h1><small id="statsSub"></small></header>
-          <h2 class="group-title" data-i18n="chart.rate"></h2>
+          <div class="segmented glide subtabs" data-sub="stats" role="tablist">
+            <button type="button" class="active" data-pane="rate" data-i18n="sub.rate"></button>
+            <button type="button" data-pane="monthly" data-i18n="sub.monthly"></button>
+            <button type="button" data-pane="yearly" data-i18n="sub.yearly"></button>
+          </div>
+          <div class="pane" data-pane="rate">
       <section class="stats">
         <div class="stat"><span class="stat-label" data-i18n="stat.avg"></span><span class="stat-value" id="statAvg">–</span><span class="stat-unit" data-i18n="unit.kml"></span></div>
         <div class="stat"><span class="stat-label" data-i18n="stat.last"></span><span class="stat-value" id="statLast">–</span><span class="stat-unit" data-i18n="unit.kml"></span></div>
@@ -84,7 +96,7 @@
       <section class="card">
         <div class="card-head">
           <h2 data-i18n="chart.rate"></h2>
-          <div class="segmented" id="rangeSeg" role="tablist">
+          <div class="segmented glide" id="rangeSeg" role="tablist">
             <button data-range="30" data-i18n="range.month"></button>
             <button data-range="365" data-i18n="range.year"></button>
             <button data-range="all" data-i18n="range.all"></button>
@@ -98,7 +110,8 @@
         <div id="typeCompare" class="compare"></div>
         <p class="hint" data-i18n="cmp.note"></p>
       </section>
-          <h2 class="group-title" data-i18n="page.monthly"></h2>
+          </div>
+          <div class="pane" data-pane="monthly" hidden>
       <section class="stats">
         <div class="stat"><span class="stat-label" data-i18n="m.max"></span><span class="stat-value" id="mMax">–</span><span class="stat-unit" id="mMaxLabel"></span></div>
         <div class="stat"><span class="stat-label" data-i18n="m.now"></span><span class="stat-value" id="mNow">–</span><span class="stat-unit" id="mNowLabel"></span></div>
@@ -107,7 +120,7 @@
       <section class="card">
         <div class="card-head">
           <h2 data-i18n="m.chart"></h2>
-          <div class="segmented" id="mRangeSeg" role="tablist">
+          <div class="segmented glide" id="mRangeSeg" role="tablist">
             <button data-range="6" data-i18n="range.6m"></button>
             <button data-range="12" data-i18n="range.year"></button>
             <button data-range="all" data-i18n="range.all"></button>
@@ -119,17 +132,22 @@
         <div class="card-head"><h2 data-i18n="m.list"></h2></div>
         <ul id="mList" class="history"></ul>
       </section>
-          <h2 class="group-title" data-i18n="page.year"></h2>
-          <div class="segmented wide year-seg" id="yearSeg"></div>
-          <div id="yearBody"></div>
+          </div>
+          <div class="pane" data-pane="yearly" hidden>
+            <div class="segmented glide wide year-seg" id="yearSeg"></div>
+            <div id="yearBody"></div>
+          </div>
         </section>
 
         <!-- รถ: ดูแลรถ + ผ่อนรถ -->
         <section class="view" id="view-car" hidden>
           <header class="view-head"><h1 data-i18n="nav.car"></h1><small id="carSub"></small></header>
-          <div id="careBody"></div>
-          <h2 class="group-title" data-i18n="page.loan"></h2>
-          <div id="loanBody"></div>
+          <div class="segmented glide subtabs" data-sub="car" role="tablist">
+            <button type="button" class="active" data-pane="care" data-i18n="sub.care"></button>
+            <button type="button" data-pane="loan" data-i18n="sub.loan"></button>
+          </div>
+          <div class="pane" data-pane="care"><div id="careBody"></div></div>
+          <div class="pane" data-pane="loan" hidden><div id="loanBody"></div></div>
         </section>
       </div>
     </main>
@@ -152,7 +170,7 @@
     <header class="fill-top">
       <div class="grabber" aria-hidden="true"></div>
       <div class="fill-head">
-        <div class="kind-seg" role="tablist"><button type="button" data-switch="form" data-i18n="q.add"></button><button type="button" class="active" data-i18n="exp.title"></button></div>
+        <div class="kind-seg glide" role="tablist"><button type="button" data-switch="form" data-i18n="q.add"></button><button type="button" class="active" data-i18n="exp.title"></button></div>
         <button class="close-x" type="button" data-close data-i18n-aria="cancel"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
       </div>
     </header>
@@ -241,7 +259,7 @@
     <header class="fill-top">
       <div class="grabber" aria-hidden="true"></div>
       <div class="fill-head">
-        <div class="kind-seg" role="tablist"><button type="button" class="active" data-i18n="q.add"></button><button type="button" data-switch="expenseForm" data-i18n="exp.title"></button></div>
+        <div class="kind-seg glide" role="tablist"><button type="button" class="active" data-i18n="q.add"></button><button type="button" data-switch="expenseForm" data-i18n="exp.title"></button></div>
         <button class="close-x" type="button" data-close data-i18n-aria="cancel"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
       </div>
     </header>
@@ -276,6 +294,20 @@
     </form>
   </section>
 
+  <!-- รายการเติมน้ำมันของรอบเดือน -->
+  <section id="monthSheet" class="sheet sheet-push" hidden>
+    <header class="topbar">
+      <button class="icon-btn" data-close data-i18n-aria="back"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <h1 id="monthTitle"></h1>
+      <span class="spacer"></span>
+    </header>
+    <div class="page-body">
+      <p class="month-range" id="monthRange"></p>
+      <section class="hs-card month-sum" id="monthSum"></section>
+      <ul id="monthList" class="fill-list"></ul>
+    </div>
+  </section>
+
   <!-- รายละเอียด / ลบ -->
   <section id="detail" class="sheet sheet-bottom" hidden>
     <div class="grabber" aria-hidden="true"></div>
@@ -307,7 +339,7 @@
       <section class="set-group">
         <div class="set-row stack">
           <div class="set-row-head"><span class="set-ic" style="--c:#5e5ce6"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></span><b data-i18n="s.mode"></b></div>
-          <div class="segmented wide" id="themeSeg">
+          <div class="segmented glide wide" id="themeSeg">
             <button type="button" data-theme-mode="auto" data-i18n="s.mode.auto"></button>
             <button type="button" data-theme-mode="light" data-i18n="s.mode.light"></button>
             <button type="button" data-theme-mode="dark" data-i18n="s.mode.dark"></button>
@@ -319,7 +351,7 @@
         </div>
         <div class="set-row stack">
           <div class="set-row-head"><span class="set-ic" style="--c:#0a84ff"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-9l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/></svg></span><b data-i18n="s.language"></b></div>
-          <div class="segmented wide" id="langSeg">
+          <div class="segmented glide wide" id="langSeg">
             <button type="button" data-lang="th">ไทย</button>
             <button type="button" data-lang="en">English</button>
           </div>

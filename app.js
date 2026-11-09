@@ -189,6 +189,7 @@ function render({ keepHistory = false } = {}) {
   renderCare(list);
   renderAlerts(list);
   state.animate = false;
+  setTimeout(syncGliders, 0);
 }
 
 function renderBanner() {
@@ -524,19 +525,57 @@ function historyHtml(items, startIdx, animate) {
 }
 
 function renderHistory(list, { reset = false } = {}) {
-  const ul = $('#history');
-  if (reset) {
-    historyAll = [...list].reverse();
-    const rated = list.filter((r) => r.rate != null && r.d && r.d.getTime() >= yearAgo());
-    historyAvg = rated.length ? sumBy(rated, (r) => r.rate) / rated.length : null;
-    state.shown = Math.max(PAGE_SIZE, Math.min(state.shown, historyAll.length));
-    historyItems = historyAll.slice(0, state.shown);
-    const animate = state.animate && !reduceMotion;
-    ul.innerHTML = historyHtml(historyItems, 0, animate) || `<li><div class="h-sub">${esc(t('history.empty'))}</div></li>`;
-    renderHistorySummary(list);
-  }
-  $('#loadMore').hidden = historyAll.length <= historyItems.length;
+  if (!reset) return;
+  historyAll = [...list].reverse();
+  const rated = list.filter((r) => r.rate != null && r.d && r.d.getTime() >= yearAgo());
+  historyAvg = rated.length ? sumBy(rated, (r) => r.rate) / rated.length : null;
+  historyItems = historyAll;
+  renderHistorySummary(list);
+  // การ์ดของแต่ละรอบเดือน (ใหม่ → เก่า) แสดงเฉพาะรอบที่มีการเติม และรอบปัจจุบัน
+  const nowK = cycleKey(new Date());
+  const months = monthlyData(list).reverse().filter((m) => m.count || m.k === nowK);
+  const top = Math.max(1, ...months.map((m) => m.total));
+  const anim = state.animate && !reduceMotion;
+  $('#history').innerHTML = months.map((m, i) => `
+    <li class="cycle-card${anim && i < 12 ? ' enter' : ''}" style="--i:${i}">
+      <button type="button" data-k="${m.k}"${m.count ? '' : ' disabled'}>
+        <span class="cc-main">
+          <b>${esc(cycleName(m.k))}${m.k === nowK ? `<em>${esc(t('m.thisMonth'))}</em>` : ''}</b>
+          <small>${esc(cycleRange(m.k))} · ${esc(t('m.fills', { n: m.count }))}${m.dist && m.liters ? ` · ${fmt(m.dist / m.liters, 1)} ${esc(t('unit.kml.short'))}` : ''}</small>
+        </span>
+        <span class="cc-amt">฿${fmtInt(m.total)}</span>
+        <svg class="cc-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        <span class="cc-bar"><i style="width:${(m.total / top) * 100}%"></i></span>
+      </button>
+    </li>`).join('') || `<li class="empty-state">${esc(t('history.empty'))}</li>`;
 }
+
+// หน้ารายการเติมน้ำมันของรอบเดือน
+let monthItems = [];
+function openMonth(k) {
+  monthItems = historyAll.filter((r) => r.d && cycleKey(r.d) === k);
+  $('#monthTitle').textContent = cycleName(k);
+  $('#monthRange').textContent = cycleRange(k);
+  const seg = segments(entries()).filter((x) => cycleKey(x.from.d) === k);
+  const kml = seg.length ? sumBy(seg, (x) => x.dist) / sumBy(seg, (x) => x.liters) : null;
+  $('#monthSum').innerHTML = `
+    <div class="hs-stats">
+      <div><span>${esc(t('hs.total'))}</span><b>฿${fmtInt(sumBy(monthItems, (r) => r.price))}</b></div>
+      <div><span>${esc(t('unit.liters'))}</span><b>${fmt(sumBy(monthItems, (r) => r.liters), 1)}</b></div>
+      <div><span>${esc(t('unit.kml.short'))}</span><b>${kml ? fmt(kml, 1) : '–'}</b></div>
+    </div>`;
+  $('#monthList').innerHTML = monthItems.map((r, i) => historyRow(r, i, reduceMotion ? null : Math.min(i, 13))).join('')
+    || `<li class="empty-state">${esc(t('history.empty'))}</li>`;
+  open('monthSheet');
+}
+$('#history').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-k]');
+  if (b) openMonth(+b.dataset.k);
+});
+$('#monthList').addEventListener('click', (e) => {
+  const li = e.target.closest('li[data-i]');
+  if (li) openDetail(monthItems[+li.dataset.i]);
+});
 
 // สรุปด้านบนหน้าประวัติ + กราฟเส้นเล็ก (อัตรากินน้ำมัน 20 ครั้งล่าสุด)
 function renderHistorySummary(list) {
@@ -561,40 +600,37 @@ function renderHistorySummary(list) {
     ${spark ? `<div class="hs-spark"><span>${esc(t('hs.trend'))}</span>${spark}</div>` : ''}`;
 }
 
-let loadingMore = false;
-function loadMoreHistory() {
-  if (loadingMore || historyItems.length >= historyAll.length) return;
-  loadingMore = true;
-  setTimeout(() => {
-    const start = historyItems.length;
-    const next = historyAll.slice(start, start + PAGE_SIZE);
-    historyItems = historyItems.concat(next);
-    state.shown = historyItems.length;
-    $('#history').insertAdjacentHTML('beforeend', historyHtml(next, start, !reduceMotion));
-    $('#loadMore').hidden = historyAll.length <= historyItems.length;
-    loadingMore = false;
-  }, 350);
-}
 
 /* ---------- สรุปรายเดือน ---------- */
 const monthKey = (d) => d.getFullYear() * 12 + d.getMonth();
+// รอบเดือนตัดวันที่ 25: วันที่ 25 ขึ้นไปนับเป็นรอบของเดือนถัดไป (เช่น 25 ต.ค. – 24 พ.ย. = รอบ พ.ย.)
+const CYCLE_DAY = 25;
+const cycleKey = (d) => monthKey(d) + (d.getDate() >= CYCLE_DAY ? 1 : 0);
+const cycleName = (k) => t('cycle.name', { m: fmtMonthLong(keyToDate(k)) });
+const cycleShort = (k) => t('cycle.name', { m: fmtMonth(keyToDate(k)) });
+function cycleRange(k) {
+  const d = keyToDate(k);
+  const start = new Date(d.getFullYear(), d.getMonth() - 1, CYCLE_DAY);
+  const end = new Date(d.getFullYear(), d.getMonth(), CYCLE_DAY - 1);
+  return `${start.getDate()} ${mon(start)} – ${end.getDate()} ${mon(end)} ${yearOf(end)}`;
+}
 const keyToDate = (k) => new Date(Math.floor(k / 12), k % 12, 1);
 
 function monthlyData(list) {
   const map = new Map();
   for (const r of list) {
     if (!r.d) continue;
-    const k = monthKey(r.d);
+    const k = cycleKey(r.d);
     const m = map.get(k) || { k, total: 0, count: 0, liters: 0, dist: 0 };
     m.total += r.price; m.count += 1; m.liters += r.liters;
     map.set(k, m);
   }
   // ระยะทางของเดือน = ช่วงที่เริ่มในเดือนนั้น
   for (const sg of segments(list)) {
-    const m = map.get(monthKey(sg.from.d));
+    const m = map.get(cycleKey(sg.from.d));
     if (m) m.dist += sg.dist;
   }
-  const nowK = monthKey(new Date());
+  const nowK = cycleKey(new Date());
   const keys = [...map.keys()];
   if (!keys.length) return [];
   const months = [];
@@ -612,18 +648,18 @@ function moneyStep(max) {
 
 function renderMonthly(list) {
   const months = monthlyData(list);
-  const now = new Date(), nowK = monthKey(now);
+  const now = new Date(), nowK = cycleKey(now);
   const cur = months.find((m) => m.k === nowK);
   const max = months.reduce((a, m) => (m.total > (a?.total ?? 0) ? m : a), null);
-  const yearMonths = months.filter((m) => m.d.getFullYear() === now.getFullYear() && m.k <= nowK);
+  const yearMonths = months.filter((m) => m.d.getFullYear() === keyToDate(nowK).getFullYear() && m.k <= nowK);
   const yearTotal = yearMonths.reduce((s, m) => s + m.total, 0);
   // เฉลี่ยต่อเดือนของปีนี้ = ยอดรวมตั้งแต่ ม.ค. ÷ จำนวนเดือนที่ผ่านมา (รวมเดือนนี้)
-  const avg = yearTotal / (now.getMonth() + 1);
+  const avg = yearTotal / (keyToDate(nowK).getMonth() + 1);
 
   $('#mMax').textContent = max ? fmtInt(max.total) : '–';
-  $('#mMaxLabel').textContent = max ? `${t('unit.baht')} · ${fmtMonth(max.d)}` : t('unit.baht');
+  $('#mMaxLabel').textContent = max ? `${t('unit.baht')} · ${cycleShort(max.k)}` : t('unit.baht');
   $('#mNow').textContent = fmtInt(cur ? cur.total : 0);
-  $('#mNowLabel').textContent = `${t('unit.baht')} · ${fmtMonth(now)}`;
+  $('#mNowLabel').textContent = `${t('unit.baht')} · ${cycleShort(nowK)}`;
   $('#mAvg').textContent = yearTotal ? fmtInt(avg) : '–';
   $$('#mRangeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.range === state.mRange));
 
@@ -636,9 +672,9 @@ function renderMonthly(list) {
   const anim = state.animate && !reduceMotion;
   $('#mList').innerHTML = withData.map((m, i) => `
     <li class="m-row${anim && i < 12 ? ' enter' : ''}" data-k="${m.k}"${anim && i < 12 ? ` style="--i:${i}"` : ''} role="button" tabindex="0">
-      <div class="h-main">${fmtMonthLong(m.d)}${m.k === nowK ? `<span class="badge">${esc(t('m.thisMonth'))}</span>` : ''}${max && m.k === max.k ? `<span class="badge t-prem">${esc(t('m.highest'))}</span>` : ''}</div>
+      <div class="h-main">${esc(cycleName(m.k))}${m.k === nowK ? `<span class="badge">${esc(t('m.thisMonth'))}</span>` : ''}${max && m.k === max.k ? `<span class="badge t-prem">${esc(t('m.highest'))}</span>` : ''}</div>
       <div class="h-rate">฿${fmtInt(m.total)}</div>
-      <div class="h-sub">${esc(t('m.fills', { n: m.count }))} · ${fmt(m.liters)} ${esc(t('unit.liters'))}${m.dist ? ` · ~${fmtInt(m.dist)} ${esc(t('unit.km'))}` : ''}</div>
+      <div class="h-sub">${esc(cycleRange(m.k))} · ${esc(t('m.fills', { n: m.count }))}${m.dist ? ` · ~${fmtInt(m.dist)} ${esc(t('unit.km'))}` : ''}</div>
       <div class="h-sub" style="text-align:right">${m.dist ? `฿${fmt(m.total / m.dist)}/${esc(t('unit.km'))}` : ''}</div>
       <div class="bar-mini"><i style="width:${(m.total / top) * 100}%"></i></div>
     </li>`).join('') || `<li><div class="h-sub">${esc(t('chart.empty'))}</div></li>`;
@@ -658,7 +694,7 @@ function renderMonthlyChart(months, maxMonth) {
   const Y = (v) => pad.t + (1 - v / yMax) * (H - pad.t - pad.b);
   const slot = (W - pad.l - pad.r) / months.length;
   const bw = Math.max(3, Math.min(28, slot * 0.62));
-  const nowK = monthKey(new Date());
+  const nowK = cycleKey(new Date());
 
   let grid = '';
   for (let v = 0; v <= yMax; v += step) {
@@ -684,7 +720,7 @@ function renderMonthlyChart(months, maxMonth) {
     const i = Math.min(months.length - 1, Math.max(0, Math.floor((x - pad.l) / slot)));
     const m = months[i];
     $$('.bar', svg).forEach((b) => b.classList.toggle('sel', +b.dataset.i === i));
-    tip.innerHTML = `<b>฿${fmtInt(m.total)}</b><br>${fmtMonthLong(m.d)} · ${esc(t('m.fills', { n: m.count }))}`;
+    tip.innerHTML = `<b>฿${fmtInt(m.total)}</b><br>${esc(cycleName(m.k))} · ${esc(t('m.fills', { n: m.count }))}`;
     tip.hidden = false;
     const px = ((pad.l + slot * (i + 0.5)) / W) * rect.width, half = tip.offsetWidth / 2;
     tip.style.left = `${Math.min(Math.max(px, half), rect.width - half)}px`;
@@ -694,22 +730,9 @@ function renderMonthlyChart(months, maxMonth) {
   svg.addEventListener('pointerleave', () => { tip.hidden = true; $$('.bar', svg).forEach((b) => b.classList.remove('sel')); });
 }
 
-// แตะเดือนในสรุปรายเดือน → ไปหน้าประวัติที่เดือนนั้น
+// แตะเดือนในสรุปรายเดือน → เปิดรายการของรอบนั้น
 function goToMonth(k) {
-  if (currentTab !== 'history') switchTab('history');
-  const idx = historyAll.findIndex((r) => r.d && monthKey(r.d) === k);
-  if (idx < 0) return;
-  if (idx >= historyItems.length) {
-    state.shown = idx + PAGE_SIZE;
-    renderHistory(entries(), { reset: true });
-  }
-  const head = $(`#history .h-month[data-k="${k}"]`);
-  if (!head) return;
-  setTimeout(() => {
-    const sc = $('#homeScroll');
-    sc.scrollTo({ top: head.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 8, behavior: reduceMotion ? 'auto' : 'smooth' });
-    head.classList.remove('flash'); void head.offsetWidth; head.classList.add('flash');
-  }, 40);
+  if (historyAll.some((r) => r.d && cycleKey(r.d) === k)) openMonth(k);
 }
 $('#mList').addEventListener('click', (e) => {
   const li = e.target.closest('li[data-k]');
@@ -1082,9 +1105,10 @@ function reminders(list) {
 
 function renderCare(list) {
   const body = $('#careBody');
-  if (!state.setup) { body.innerHTML = `<p class="empty-state">${esc(t('loan.notConnected'))}</p>`; setText('#mCare', ''); return; }
+  if (!state.setup) { body.innerHTML = `<p class="empty-state">${esc(t('loan.notConnected'))}</p>`; $('#expBody').innerHTML = body.innerHTML; setText('#mCare', ''); return; }
   if (!state.car) {
     body.innerHTML = `<p class="empty-state">${esc(state.carError === 'needUpdate' ? t('care.needUpdate') : t('loan.loading'))}</p>`;
+    $('#expBody').innerHTML = body.innerHTML;
     setText('#mCare', state.carError === 'needUpdate' ? t('care.needUpdateShort') : '');
     return;
   }
@@ -1131,6 +1155,8 @@ function renderCare(list) {
       <div class="cost-legend">${parts.map(([k, v, c]) => `<span style="--c:${c}"><em>${esc(k === '__fuel' ? t('care.fuel') : t(`cat.${k}`))}</em><b>฿${fmtInt(v)}</b></span>`).join('')}</div>
     </section>
 
+`;
+  $('#expBody').innerHTML = `
     <div class="care-head"><h2>${esc(t('care.expenses'))}</h2>
       <button class="add-pill" data-open="expenseForm">${svgIc('plus')}<span>${esc(t('care.add'))}</span></button></div>
     <ul class="fill-list" id="expList">${exps.map((x, i) => {
@@ -1148,7 +1174,7 @@ function renderCare(list) {
     }).join('') || `<li class="empty-state">${esc(t('care.empty'))}</li>`}</ul>`;
 }
 
-$('#careBody').addEventListener('click', async (e) => {
+async function onCareClick(e) {
   const renew = e.target.closest('[data-renew]');
   if (renew) {
     const k = renew.dataset.renew;
@@ -1167,7 +1193,9 @@ $('#careBody').addEventListener('click', async (e) => {
   try { await carPost({ action: 'deleteExpense', row: x.row, amount: x.amount }); toast(t('t.deletedSheet')); }
   catch (err) { toast(err.message === 'mismatch' ? t('t.changed') : t('t.deleteFailed')); loadCar(); }
   render({ keepHistory: true });
-});
+}
+$('#careBody').addEventListener('click', onCareClick);
+$('#expBody').addEventListener('click', onCareClick);
 
 // ฟอร์มค่าใช้จ่ายอื่น
 const expForm = $('#expForm');
@@ -1303,6 +1331,7 @@ const ON_OPEN = {
   form: () => initForm(),
   settings: () => initSettings(),
   prices: () => renderPrices(),
+  monthSheet: () => {},
   expenseForm: () => initExpenseForm(),
   careSettings: () => initRemForm(),
   odoSheet: () => initOdo(),
@@ -1311,13 +1340,100 @@ const ON_OPEN = {
 // หน้าเดิมที่ตอนนี้อยู่ในแท็บ (ลิงก์ data-open เก่า เช่นจากแถบเตือน)
 const TAB_OF = { economy: 'stats', historyPage: 'history', monthly: 'stats', yearPage: 'stats', care: 'car', loan: 'car' };
 
+/* ---------- แท็บย่อยด้านบนของแต่ละหน้า ---------- */
+function showPane(bar, name) {
+  $$('button', bar).forEach((b) => b.classList.toggle('active', b.dataset.pane === name));
+  const view = bar.closest('.view');
+  $$(':scope > .pane', view).forEach((p) => {
+    const on = p.dataset.pane === name;
+    if (on && p.hidden) { p.hidden = false; p.classList.remove('enter'); void p.offsetWidth; p.classList.add('enter'); }
+    else if (!on) p.hidden = true;
+  });
+  syncGliders();
+  // กราฟต้องวาดตอนมองเห็นจึงได้ขนาดจริง
+  state.animate = true;
+  if (name === 'rate') { const l = entries(); renderStats(l); renderChart(l); renderCompare(l); }
+  if (name === 'monthly') renderMonthly(entries());
+  if (name === 'yearly') renderYear(entries());
+  if (name === 'loan') renderLoan();
+  state.animate = false;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.subtabs [data-pane]');
+  if (b) showPane(b.closest('.subtabs'), b.dataset.pane);
+});
+
+/* ---------- ตัวเลือกที่เลื่อนได้ (แบบเดียวกับแถบเมนู) ---------- */
+function syncGliders() {
+  $$('.glide').forEach((c) => {
+    let g = $(':scope > .seg-glider', c);
+    if (!g) { g = document.createElement('i'); g.className = 'seg-glider'; g.setAttribute('aria-hidden', 'true'); c.prepend(g); }
+    const b = $(':scope > button.active', c);
+    if (!b || !c.offsetWidth) { g.style.opacity = b ? g.style.opacity : '0'; return; }
+    const first = !g.dataset.placed;
+    if (first) g.style.transition = 'none';
+    g.style.opacity = '1';
+    g.style.width = `${b.offsetWidth}px`;
+    g.style.transform = `translateX(${b.offsetLeft}px)`;
+    if (first) { void g.offsetWidth; g.style.transition = ''; g.dataset.placed = '1'; }
+  });
+}
+// หลังกดตัวเลือกใด ๆ ให้แถบเลื่อนตาม (ปุ่ม active ถูกเปลี่ยนโดยโค้ดของแต่ละส่วน)
+document.addEventListener('click', () => setTimeout(syncGliders, 0));
+let segDrag = null;
+document.addEventListener('pointerdown', (e) => {
+  const c = e.target.closest('.glide');
+  if (!c) return;
+  segDrag = { c, x: e.clientX, id: e.pointerId, started: false };
+});
+document.addEventListener('pointermove', (e) => {
+  if (!segDrag || e.pointerId !== segDrag.id) return;
+  const { c } = segDrag;
+  if (!segDrag.started) {
+    if (Math.abs(e.clientX - segDrag.x) < 6) return;
+    segDrag.started = true;
+    c.classList.add('dragging');
+  }
+  const g = $(':scope > .seg-glider', c);
+  if (!g) return;
+  const rect = c.getBoundingClientRect();
+  const w = g.offsetWidth;
+  g.style.transform = `translateX(${Math.max(3, Math.min(rect.width - w - 3, e.clientX - rect.left - w / 2))}px)`;
+  const btns = $$(':scope > button', c);
+  const over = btns.reduce((best, b) => {
+    const r = b.getBoundingClientRect(), d = Math.abs(r.left + r.width / 2 - e.clientX);
+    return !best || d < best.d ? { b, d } : best;
+  }, null);
+  btns.forEach((b) => b.classList.toggle('over', b === over.b));
+});
+const endSegDrag = () => {
+  if (!segDrag) return;
+  const { c, started } = segDrag;
+  segDrag = null;
+  if (!started) return;
+  c.classList.remove('dragging');
+  const over = $(':scope > button.over', c);
+  $$(':scope > button', c).forEach((b) => b.classList.remove('over'));
+  // กันไม่ให้ click ที่ตามมาหลังลากไปกดปุ่มที่นิ้วเริ่มแตะ
+  c.dataset.dragged = '1';
+  setTimeout(() => { delete c.dataset.dragged; }, 50);
+  if (over && !over.classList.contains('active')) over.click();
+  else syncGliders();
+};
+document.addEventListener('pointerup', endSegDrag);
+document.addEventListener('pointercancel', endSegDrag);
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('.glide');
+  if (c && c.dataset.dragged && e.isTrusted) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+
 /* ---------- แท็บ ---------- */
 let currentTab = 'home';
 const TABS = ['home', 'history', 'stats', 'car'];
 const TAB_RENDER = {
   history: () => renderHistory(entries(), { reset: true }),
-  stats: () => { const l = entries(); renderStats(l); renderChart(l); renderMonthly(l); renderCompare(l); renderYear(l); },
-  car: () => { renderCare(entries()); renderLoan(); },
+  stats: () => { const bar = $('.subtabs[data-sub="stats"]'); showPane(bar, $('button.active', bar).dataset.pane); },
+  car: () => { renderCare(entries()); const bar = $('.subtabs[data-sub="car"]'); showPane(bar, $('button.active', bar).dataset.pane); },
 };
 function switchTab(id) {
   const scroller = $('#homeScroll');
@@ -1338,6 +1454,7 @@ function switchTab(id) {
   state.animate = true;
   TAB_RENDER[id]?.();
   state.animate = false;
+  syncGliders();
 }
 // แถบไฮไลท์แบบหยดกระจก: เลื่อนไปที่แท็บที่เลือก ลากด้วยนิ้วได้ ปล่อยแล้วไปแท็บที่อยู่ใต้นิ้ว
 const tabsEl = $('#tabs');
@@ -1404,6 +1521,7 @@ function open(id) {
   sheet.hidden = false;
   sheet.style.zIndex = 10 + stack.length * 2;
   ON_OPEN[id]?.();
+  syncGliders();
   sheet.classList.add('opening');
   if (sheet.classList.contains('sheet-push')) {
     const el = below || $('.shell');
@@ -1488,11 +1606,6 @@ function startFill() {
 }
 $('#plusBtn').addEventListener('click', startFill);
 $('#qPrice').addEventListener('click', () => open('prices'));
-// แตะรถ → ไฟหน้ากะพริบติด
-$('#carStage').addEventListener('click', () => {
-  const car = $('#car');
-  car.classList.remove('flash'); void car.offsetWidth; car.classList.add('flash');
-});
 // สลับระหว่างแผ่นเติมน้ำมัน / ค่าใช้จ่ายอื่น
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-switch]');
@@ -1651,10 +1764,6 @@ function openDetail(item) {
   open('detail');
 }
 
-$('#history').addEventListener('click', (e) => {
-  const li = e.target.closest('li[data-i]');
-  if (li) openDetail(historyItems[+li.dataset.i]);
-});
 
 $('#deleteBtn').addEventListener('click', async () => {
   const item = detailItem;
@@ -1988,8 +2097,6 @@ $('#mRangeSeg').addEventListener('click', (e) => {
   renderMonthly(entries());
   state.animate = false;
 });
-new IntersectionObserver((es) => { if (es.some((en) => en.isIntersecting)) loadMoreHistory(); },
-  { root: $('#homeScroll'), rootMargin: '0px 0px 160px 0px' }).observe($('#loadMore'));
 
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-close]')) closeTop();
