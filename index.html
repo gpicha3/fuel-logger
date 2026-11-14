@@ -350,8 +350,18 @@
         </label>
       </section>
 
-      <h3 class="set-title" data-i18n="s.look"></h3>
+      <!-- โหมด สี ภาษา และการเชื่อมต่อ ตั้งที่ Alpha ที่เดียว (ส่วนเดิมซ่อนไว้ ไม่ลบ เพื่อไม่ให้โค้ดเดิมพัง) -->
+      <h3 class="set-title" data-i18n="s.alphaTitle"></h3>
       <section class="set-group">
+        <a class="set-row alpha-link" href="/#settings">
+          <span class="set-ic" style="--c:#b48cff"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5.5"/><ellipse cx="12" cy="12" rx="10" ry="3.6" transform="rotate(-20 12 12)" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></span>
+          <div class="set-text"><b data-i18n="s.alphaLink"></b><small data-i18n="s.alphaLinkSub"></small></div>
+          <svg class="chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+        </a>
+      </section>
+
+      <h3 class="set-title" data-i18n="s.look" hidden></h3>
+      <section class="set-group" hidden>
         <div class="set-row stack">
           <div class="set-row-head"><span class="set-ic" style="--c:#5e5ce6"><svg class="ic" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg></span><b data-i18n="s.mode"></b></div>
           <div class="segmented glide wide" id="themeSeg">

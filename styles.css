@@ -1265,3 +1265,7 @@ input, textarea { background: var(--surface); border: 0; border-radius: 16px; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
 .car-title { view-transition-name: app-title; }
+
+/* ลิงก์ไปหน้าตั้งค่าของ Alpha */
+.alpha-link { color: inherit; text-decoration: none; }
+.alpha-link .chev-r { width: 18px; height: 18px; flex: none; color: var(--muted); }

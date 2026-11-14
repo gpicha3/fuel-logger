@@ -244,6 +244,9 @@ const STRINGS = {
     'detail.confirm': 'ลบรายการ {date} · {km} กม. · ฿{price} ?',
 
     's.look': 'หน้าตา',
+    's.alphaTitle': 'ธีม ภาษา และการเชื่อมต่อ',
+    's.alphaLink': 'ตั้งค่าที่ Alpha',
+    's.alphaLinkSub': 'สี โหมด ภาษา และ Setup code ของ Google Sheet อยู่ที่หน้าตั้งค่าของ Alpha',
     's.mode': 'โหมดสี',
     's.mode.auto': 'ตามเครื่อง',
     's.mode.light': 'สว่าง',
@@ -525,6 +528,9 @@ const STRINGS = {
     'detail.confirm': 'Delete {date} · {km} km · ฿{price}?',
 
     's.look': 'Appearance',
+    's.alphaTitle': 'Theme, language and connection',
+    's.alphaLink': 'Open Alpha settings',
+    's.alphaLinkSub': 'Color, mode, language and the Google Sheet setup code live in Alpha settings',
     's.mode': 'Theme',
     's.mode.auto': 'System',
     's.mode.light': 'Light',
@@ -570,8 +576,13 @@ const MONTHS = {
   en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
 };
 
+// ภาษาตั้งที่ Alpha (alpha.lang) ก่อน ถ้ายังไม่เคยตั้งใช้ค่าเดิมของแอป (fl.lang)
 let LANG = (() => {
-  try { return localStorage.getItem('fl.lang') || 'th'; } catch { return 'th'; }
+  try {
+    const a = JSON.parse(localStorage.getItem('alpha.lang') || 'null');
+    if (a === 'th' || a === 'en') return a;
+    return localStorage.getItem('fl.lang') || 'th';
+  } catch { return 'th'; }
 })();
 
 function t(key, vars) {

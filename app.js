@@ -1723,12 +1723,15 @@ $('#langSeg').addEventListener('click', (e) => {
   render();
 });
 
+// แก้/เลิกเชื่อมต่อทำที่หน้าตั้งค่าของ Alpha แล้ว ที่นี่แสดงแค่สถานะ
 function renderConnection(editing = false) {
   const connected = !!state.setup;
-  $('#connCard').hidden = !connected || editing;
-  $('#connActions').hidden = !connected || editing;
-  $('#setupEditor').hidden = connected && !editing;
+  $('#connCard').hidden = false;
+  $('#connActions').hidden = true;
+  $('#setupEditor').hidden = true;
   $('#cancelEditBtn').hidden = !connected;
+  $('#connTitle').textContent = connected ? t('s.connected') : t('s.notConnected');
+  $('#connUrl').textContent = '';
   if (connected) {
     $('#connTitle').textContent = t('s.connected');
     const id = state.setup.url.split('/s/')[1]?.split('/')[0] || '';

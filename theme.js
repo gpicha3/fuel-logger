@@ -21,8 +21,18 @@ const THEME_KEY = 'fl.theme';
 // ธีมสีของ Alpha (gpicha3.github.io) → ชุดสีที่ใกล้ที่สุดของแอปนี้ (ต้องตรงกับ alpha-theme.js)
 const ALPHA_THEME_KEY = 'alpha.theme';
 const ALPHA_THEME = { aurora: 'lavender', ocean: 'sky', sunset: 'peach', forest: 'sage', rose: 'pink', mono: 'gray' };
+function alphaMode() {
+  try { const m = JSON.parse(localStorage.getItem('alpha.mode') || 'null'); return ['auto', 'light', 'dark'].includes(m) ? m : null; } catch { return null; }
+}
 function alphaAccent() {
-  try { return ALPHA_THEME[JSON.parse(localStorage.getItem(ALPHA_THEME_KEY) || '"aurora"')] || ALPHA_THEME.aurora; } catch { return ALPHA_THEME.aurora; }
+  try {
+    let id = JSON.parse(localStorage.getItem(ALPHA_THEME_KEY) || '"aurora"');
+    if (id === 'time') { // ธีมตามเวลา (ต้องตรงกับ alpha-theme.js)
+      const h = new Date().getHours();
+      id = h >= 6 && h < 16 ? 'ocean' : h >= 16 && h < 19 ? 'sunset' : 'aurora';
+    }
+    return ALPHA_THEME[id] || ALPHA_THEME.aurora;
+  } catch { return ALPHA_THEME.aurora; }
 }
 
 function accentId(theme) {
@@ -36,6 +46,8 @@ function loadTheme() {
   catch { theme = { mode: 'auto', accent: 'sage' }; }
   theme.accent = accentId(theme);
   theme.accent = alphaAccent(); // สีตามธีมที่เลือกใน Alpha
+  const m = alphaMode();
+  if (m) theme.mode = m;        // โหมดสว่าง/มืดตามที่ตั้งใน Alpha
   return theme;
 }
 
