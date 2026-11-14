@@ -18,6 +18,12 @@ const LEGACY_ACCENTS = {
   graphite: 'gray', black: 'gray', white: 'gray', custom: 'sage',
 };
 const THEME_KEY = 'fl.theme';
+// ธีมสีของ Alpha (gpicha3.github.io) → ชุดสีที่ใกล้ที่สุดของแอปนี้ (ต้องตรงกับ alpha-theme.js)
+const ALPHA_THEME_KEY = 'alpha.theme';
+const ALPHA_THEME = { aurora: 'lavender', ocean: 'sky', sunset: 'peach', forest: 'sage', rose: 'pink', mono: 'gray' };
+function alphaAccent() {
+  try { return ALPHA_THEME[JSON.parse(localStorage.getItem(ALPHA_THEME_KEY) || '"aurora"')] || ALPHA_THEME.aurora; } catch { return ALPHA_THEME.aurora; }
+}
 
 function accentId(theme) {
   if (ACCENTS[theme.accent]) return theme.accent;
@@ -29,6 +35,7 @@ function loadTheme() {
   try { theme = { mode: 'auto', accent: 'sage', ...JSON.parse(localStorage.getItem(THEME_KEY) || '{}') }; }
   catch { theme = { mode: 'auto', accent: 'sage' }; }
   theme.accent = accentId(theme);
+  theme.accent = alphaAccent(); // สีตามธีมที่เลือกใน Alpha
   return theme;
 }
 
