@@ -1269,3 +1269,60 @@ input, textarea { background: var(--surface); border: 0; border-radius: 16px; }
 /* ลิงก์ไปหน้าตั้งค่าของ Alpha */
 .alpha-link { color: inherit; text-decoration: none; }
 .alpha-link .chev-r { width: 18px; height: 18px; flex: none; color: var(--muted); }
+
+/* ================= Alpha skin: หน้าตาให้เข้ากับ Alpha (สีจาก /alpha-theme.js) =================
+   เปลี่ยนแค่หน้าตา: ตัวแปรสี พื้นออโรร่า การ์ดกระจก แถบเมนู ปุ่ม — โครงและฟีเจอร์เดิมทั้งหมดอยู่ที่เดิม */
+:root.is-dark {
+  --bg: var(--bg-dark, #07040f); --canvas: var(--bg); --home-bg: var(--bg);
+  --surface: rgba(255, 255, 255, .07); --surface-2: rgba(255, 255, 255, .11); --border: rgba(255, 255, 255, .12);
+  --text: var(--ink-dark, #f4efff); --muted: var(--dim-dark, #9a8fb8);
+  --accent: var(--vi, #b48cff); --on-accent: #12081f; --ink: var(--vi, #b48cff); --title: var(--ink-dark, #f4efff);
+  --pastel: color-mix(in srgb, var(--vi, #b48cff) 20%, transparent); --on-pastel: color-mix(in srgb, var(--vi, #b48cff) 55%, #fff);
+  --accent-soft: color-mix(in srgb, var(--vi, #b48cff) 14%, transparent);
+  --nav-bg: rgba(18, 12, 30, .8); --nav-ic: var(--dim-dark, #9a8fb8); --ring: rgba(255, 255, 255, .16);
+  --aura1: var(--g1); --aura2: var(--g2); --aura3: var(--g3);
+}
+:root:not(.is-dark) {
+  --bg: var(--bg-light, #f6f3ff); --canvas: var(--bg); --home-bg: var(--bg);
+  --surface: rgba(255, 255, 255, .64); --surface-2: rgba(255, 255, 255, .82); --border: rgba(30, 20, 60, .1);
+  --text: #17121f; --muted: #6f6880;
+  --accent: color-mix(in srgb, var(--vi, #b48cff) 72%, #1a1030); --on-accent: #fff; --ink: var(--accent); --title: #17121f;
+  --pastel: color-mix(in srgb, var(--vi, #b48cff) 24%, #fff); --on-pastel: color-mix(in srgb, var(--vi, #b48cff) 55%, #1a1030);
+  --accent-soft: color-mix(in srgb, var(--vi, #b48cff) 12%, #fff);
+  --nav-bg: rgba(255, 255, 255, .8);
+  --aura1: color-mix(in srgb, var(--g1) 40%, transparent); --aura2: color-mix(in srgb, var(--g2) 40%, transparent); --aura3: color-mix(in srgb, var(--g3) 40%, transparent);
+}
+.shell, .sheet {
+  background:
+    radial-gradient(40% 26% at 16% 10%, var(--aura1, transparent), transparent 70%),
+    radial-gradient(36% 24% at 90% 30%, var(--aura2, transparent), transparent 70%),
+    radial-gradient(46% 30% at 50% 98%, var(--aura3, transparent), transparent 70%),
+    var(--bg);
+}
+/* การ์ดกระจก */
+.spec, .tile, .card, .stat, .set-group, .fill-item, .rem-tile, .ln-next, .ln-stats div, .b-tile, .home-tiles .tile {
+  background: var(--surface); border: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+}
+.spec.pastel { background: color-mix(in srgb, var(--vi, #b48cff) 16%, var(--surface)); border-color: color-mix(in srgb, var(--vi, #b48cff) 40%, transparent); }
+.alert { border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); background: color-mix(in srgb, var(--warn) 12%, var(--surface)); }
+/* แสงสีธีมใต้รูปรถ */
+.car-stage::before { content: ""; position: absolute; left: 12%; right: 12%; bottom: 4%; height: 34%; border-radius: 50%;
+  background: radial-gradient(closest-side, var(--halo, transparent), transparent); opacity: .7; pointer-events: none; }
+/* แถบเมนู + ปุ่ม + ไล่สีตามธีม (แบบปุ่มไมค์ของ Alpha) */
+.tab-glider { background: linear-gradient(135deg, var(--vi, #b48cff), var(--pk, #ff5fbf)); box-shadow: 0 4px 14px var(--halo, transparent); }
+.tabs button.active, .tabs.dragging button.over { color: #fff; }
+.plus-btn { background: linear-gradient(135deg, var(--vi, #b48cff), var(--pk, #ff5fbf)); color: #fff; border: 0; box-shadow: 0 0 18px var(--halo, transparent); }
+.save-btn, .btn.primary, .add-pill, .chip.active, .kind-seg button.active { background: linear-gradient(135deg, var(--vi, #b48cff), var(--pk, #ff5fbf)); color: #fff; }
+
+/* B1: ปุ่มกลับ Alpha มุมซ้ายบน (มีรูปตัวละครวงกลมเล็ก) */
+.brand { flex-direction: column; align-items: stretch; gap: 6px; }
+.brand-row { display: flex; align-items: center; justify-content: space-between; }
+.brand-row .menu-btn { margin: 0 -8px 0 0; }
+.hub-back { padding: 3px 11px 3px 3px; gap: 7px; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.hb-av { position: relative; width: 24px; height: 24px; border-radius: 50%; overflow: hidden; flex: none;
+  background: radial-gradient(circle at 50% 35%, var(--core-b, #c04dff), var(--core-c, #3b1d9e) 80%); }
+.hb-av img { position: absolute; width: 34px; left: -5px; top: 1px; }
+.brand .hub-back { margin: 0; }
+.view-head .hub-back { margin: 0 0 8px; }
