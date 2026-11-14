@@ -4,7 +4,7 @@ import './core.js';
 
 const C = globalThis.FuelCore;
 const BASE = new URL('./', import.meta.url).pathname; // /fuel-logger/
-const KEYS = { setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', car: 'fl.car', loan: 'fl.loan', odo: 'fl.odo' };
+const KEYS = { setup: 'fl.setup', rows: 'fl.rows', pending: 'fl.pending', car: 'fl.car', odo: 'fl.odo' };
 const read = (k, fallback) => {
   try { const v = localStorage.getItem(k); return v == null ? fallback : JSON.parse(v); } catch { return fallback; }
 };
@@ -25,14 +25,13 @@ export async function getSummary() {
   const setup = read(KEYS.setup, null);
   if (!setup) return { app, title: 'Fuel Logger', needsSetup: true, stats: [], alerts: [] };
 
-  // ดึงข้อมูลล่าสุดแบบขนาน ถ้าส่วนรถ/ผ่อนรถโหลดไม่ได้ ใช้ค่าที่แอปเก็บไว้ในเครื่องแทน
-  const [fuel, carRes, loanRes] = await Promise.allSettled([C.apiGet(setup), C.apiGet(setup, 'car'), C.apiGet(setup, 'loan')]);
+  // ดึงข้อมูลล่าสุดแบบขนาน ถ้าส่วนรถโหลดไม่ได้ ใช้ค่าที่แอปเก็บไว้ในเครื่องแทน
+  // งวดผ่อนรถไม่ส่งขึ้น hub เพราะ finance-app เป็นแหล่งเดียวของรายการเงิน/งวดผ่อน (ในแอปนี้ยังแสดงเหมือนเดิม)
+  const [fuel, carRes] = await Promise.allSettled([C.apiGet(setup), C.apiGet(setup, 'car')]);
   if (fuel.status === 'rejected') throw fuel.reason;
   const rows = fuel.value.rows || [];
   const car = carRes.status === 'fulfilled' && carRes.value.car
     ? { expenses: carRes.value.expenses, settings: carRes.value.settings } : read(KEYS.car, null);
-  const loan = loanRes.status === 'fulfilled' && Array.isArray(loanRes.value.rows) && loanRes.value.dueDay
-    ? loanRes.value : read(KEYS.loan, null);
 
   const list = C.entries(rows, read(KEYS.pending, []));
   const ctx = { car, odoLocal: read(KEYS.odo, null), t: (k) => k, fmtDate, fmtInt };
@@ -48,14 +47,6 @@ export async function getSummary() {
 
   const alerts = [];
   const today = new Date(); today.setHours(0, 0, 0, 0);
-
-  if (loan) {
-    const s = C.loanStatus(loan, today);
-    if (s.next && s.days <= 30) {
-      alerts.push({ level: levelOf(s.days), text: `ค่างวดรถ ฿${fmtInt(s.installment)} · ${inDays(s.days)}`,
-        dueDate: iso(s.dueDate), link: `${BASE}#loan` });
-    }
-  }
 
   // ใช้เกณฑ์ "ใกล้ถึง" (urgent) ของแอปเอง แล้วแบ่งระดับตามวันที่เหลือ
   for (const r of C.reminders(list, ctx)) {
