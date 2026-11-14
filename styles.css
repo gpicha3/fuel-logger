@@ -1253,3 +1253,15 @@ input, textarea { background: var(--surface); border: 0; border-radius: 16px; }
 .hub-back svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .hub-back:active { opacity: .6; }
 .brand .hub-back { margin: 2px 0 8px; }
+
+/* เปลี่ยนหน้าระหว่าง Alpha ↔ แอป ให้สมูท (Safari 18.2+ / Chrome 126+) — หน้าเก่าเฟดออก หน้าใหม่เฟดเข้า */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: vt-out .22s cubic-bezier(.4, 0, 1, 1) both; }
+::view-transition-new(root) { animation: vt-in .32s cubic-bezier(.22, 1, .36, 1) both; }
+::view-transition-group(app-title) { animation-duration: .38s; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
+@keyframes vt-out { to { opacity: 0; transform: scale(.985); } }
+@keyframes vt-in { from { opacity: 0; transform: scale(1.015); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+.car-title { view-transition-name: app-title; }
