@@ -38,8 +38,10 @@ export async function getSummary() {
   const ctx = { car, odoLocal: read(KEYS.odo, null), t: (k) => k, fmtDate, fmtInt };
   const e = C.estimate(list, ctx);
 
+  // วิ่งเกินระยะต่อถังปกติแล้ว (เหลือไม่ถึง 1 กม.) = ถึงเวลาเติมน้ำมัน
+  const empty = e.remaining != null && e.remaining < 1;
   const stats = [
-    { label: 'ยังวิ่งได้', value: e.remaining != null ? fmtInt(e.remaining) : '–', unit: 'กม.' },
+    { label: empty ? 'ถึงเวลาเติมน้ำมันแล้ว' : 'ยังวิ่งได้', value: e.remaining != null ? fmtInt(e.remaining) : '–', unit: 'กม.' },
     { label: 'อัตราเฉลี่ย', value: e.kml ? e.kml.toFixed(1) : '–', unit: 'กม./ล.' },
     { label: 'ต้นทุน', value: e.costKm ? e.costKm.toFixed(2) : '–', unit: '฿/กม.' },
   ];
@@ -72,13 +74,13 @@ export async function getSummary() {
 
   // น้ำมันเหลือน้อย (เหลือไม่ถึง 15% ของระยะต่อถัง)
   if (e.remaining != null && e.range && e.remaining < e.range * 0.15) {
-    alerts.push({ level: 'soon', text: `น้ำมันใกล้หมด · เหลือราว ${fmtInt(e.remaining)} กม.`, dueDate: iso(today), link: `${BASE}#add` });
+    alerts.push({ level: 'soon', text: empty ? 'ถึงเวลาเติมน้ำมันแล้ว' : `น้ำมันใกล้หมด · เหลือราว ${fmtInt(e.remaining)} กม.`, dueDate: iso(today), link: `${BASE}#add` });
   }
 
   return {
     app, title: 'Fuel Logger', stats, alerts,
     brief: [
-      e.remaining != null ? `น้ำมันพอวิ่งอีก ~${fmtInt(e.remaining)} กม.` : null,
+      e.remaining == null ? null : empty ? 'ถึงเวลาเติมน้ำมันแล้ว' : `น้ำมันพอวิ่งอีก ~${fmtInt(e.remaining)} กม.`,
       e.kml ? `อัตราเฉลี่ย ${e.kml.toFixed(1)} กม./ล. · ${e.costKm ? e.costKm.toFixed(2) : '–'} ฿/กม.` : null,
     ].filter(Boolean),
   };
