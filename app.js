@@ -547,7 +547,7 @@ function renderHistorySummary(list) {
     const X = (i) => (i / (pts.length - 1)) * 100, Y = (v) => 34 - ((v - lo) / (hi - lo || 1)) * 30;
     const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(i).toFixed(1)},${Y(p.rate).toFixed(1)}`).join('');
     spark = `<div class="spark-wrap"><svg class="spark" viewBox="0 0 100 38" preserveAspectRatio="none"><defs><linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="fill-top-stop"/><stop offset="1" class="fill-bottom-stop"/></linearGradient></defs><path d="${d}L100,38L0,38Z" class="spark-area"/><path d="${d}" class="spark-line"/></svg>`
-      + `<i class="spark-end" style="top:${(Y(pts.at(-1).rate) / 38) * 100}%"></i></div>`
+      + `<i class="spark-end" style="top:${(Y(pts.at(-1).rate) / 38) * 100}%"></i><i class="spark-sel" hidden></i><div class="tooltip spark-tip" hidden></div></div>`
       + `<div class="spark-x"><span>${fmtDate(pts[0].d)}</span><span>${fmt(pts.at(-1).rate, 1)} ${esc(t('unit.kml.short'))}</span></div>`;
   }
   el.innerHTML = `
@@ -557,6 +557,27 @@ function renderHistorySummary(list) {
       <div><span>${esc(t('hs.total'))}</span><b>฿${fmtInt(sumBy(list, (r) => r.price))}</b></div>
     </div>
     ${spark ? `<div class="hs-spark"><span>${esc(t('hs.trend'))}</span>${spark}</div>` : ''}`;
+
+  // แตะ/ลากบนกราฟเพื่อดูค่าแต่ละครั้ง (เหมือนกราฟหน้าสถิติ)
+  const wrap = $('.spark-wrap', el);
+  if (!wrap) return;
+  const svg = $('.spark', wrap), tip = $('.spark-tip', wrap), sel = $('.spark-sel', wrap);
+  const ys = pts.map((p) => p.rate), lo = Math.min(...ys), hi = Math.max(...ys);
+  const pick = (clientX) => {
+    const r = svg.getBoundingClientRect();
+    const i = Math.round(Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * (pts.length - 1));
+    const p = pts[i];
+    const x = r.left - wrap.getBoundingClientRect().left + (i / (pts.length - 1)) * r.width;
+    const y = svg.offsetTop + ((34 - ((p.rate - lo) / (hi - lo || 1)) * 30) / 38) * r.height;
+    sel.style.left = `${x}px`; sel.style.top = `${y}px`; sel.hidden = false;
+    tip.innerHTML = `<b>${fmt(p.rate, 1)}</b> ${esc(t('unit.kml.short'))} · ${esc(p.type)}<br>${fmtDate(p.d)}`;
+    tip.hidden = false;
+    const half = tip.offsetWidth / 2;
+    tip.style.left = `${Math.min(Math.max(x, half), wrap.clientWidth - half)}px`;
+  };
+  wrap.addEventListener('pointerdown', (e) => pick(e.clientX));
+  wrap.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType === 'mouse') pick(e.clientX); });
+  wrap.addEventListener('pointerleave', () => { tip.hidden = true; sel.hidden = true; });
 }
 
 
