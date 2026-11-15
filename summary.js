@@ -68,8 +68,14 @@ export async function getSummary() {
     alerts.push({ level: 'soon', text: empty ? 'ถึงเวลาเติมน้ำมันแล้ว' : `น้ำมันใกล้หมด · เหลือราว ${fmtInt(e.remaining)} กม.`, dueDate: iso(today), link: `${BASE}#add` });
   }
 
+  // ข้อมูลดิบให้ hub แต่งประโยคพูดเอง: น้ำมันใกล้หมดไหม + อัตราของถังล่าสุดที่คำนวณได้
+  const lastRated = [...list].reverse().find((r) => r.rate != null);
+  const facts = { fuelLow: e.remaining != null && !!e.range && e.remaining < e.range * 0.15, kmPerL: lastRated?.rate ?? e.kml ?? null };
+  // ชื่อรถ (ตั้งในแอป) ใช้เป็นหัวการ์ดใน hub
+  const title = car?.settings?.carName || read('fl.carName', '') || 'Yaris ATIV Premium';
+
   return {
-    app, title: 'Fuel Logger', stats, alerts,
+    app, title, stats, alerts, facts,
     brief: [
       // ตอนถึงเวลาเติม แจ้งเตือนบอกไว้แล้ว ไม่ต้องมีบรรทัดระยะซ้ำ
       e.remaining == null || empty ? null : `น้ำมันพอวิ่งอีก ~${fmtInt(e.remaining)} กม.`,
