@@ -68,9 +68,23 @@ export async function getSummary() {
     alerts.push({ level: 'soon', text: empty ? 'ถึงเวลาเติมน้ำมันแล้ว' : `น้ำมันใกล้หมด · เหลือราว ${fmtInt(e.remaining)} กม.`, dueDate: iso(today), link: `${BASE}#add` });
   }
 
-  // ข้อมูลดิบให้ hub แต่งประโยคพูดเอง: น้ำมันใกล้หมดไหม + อัตราของถังล่าสุดที่คำนวณได้
+  // ข้อมูลดิบ (ตัวเลข/สถานะ) ให้ hub แต่งประโยคพูดเอง — แอปนี้ไม่ส่งประโยค
+  // reminders: type = service (เช็กระยะ) | appt (นัดเช็กระยะ) | tax | insurance | act · days < 0 = เลยกำหนด
+  //            เช็กระยะตามกิโล: byKm + leftKm (<= 0 = เลยแล้ว) + near (ใกล้ถึงตามเกณฑ์ของแอป)
   const lastRated = [...list].reverse().find((r) => r.rate != null);
-  const facts = { fuelLow: e.remaining != null && !!e.range && e.remaining < e.range * 0.15, kmPerL: lastRated?.rate ?? e.kml ?? null };
+  const RENEW_TYPE = { taxDue: 'tax', insuranceDue: 'insurance', actDue: 'act' };
+  const reminders = [];
+  for (const r of C.reminders(list, ctx)) {
+    if (r.key === 'service' && r.appt) reminders.push({ type: 'appt', days: r.leftDays });
+    else if (r.key === 'service' && r.byKm) reminders.push({ type: 'service', byKm: true, leftKm: Math.round(r.leftKm), near: !!r.urgent, days: r.kmDays });
+    else if (r.key === 'service' && r.leftDays != null) reminders.push({ type: 'service', days: r.leftDays });
+    else if (RENEW_TYPE[r.key] && r.leftDays != null) reminders.push({ type: RENEW_TYPE[r.key], days: r.leftDays });
+  }
+  const facts = {
+    fuelLow: e.remaining != null && !!e.range && e.remaining < e.range * 0.15,
+    kmPerL: lastRated?.rate ?? e.kml ?? null,
+    reminders,
+  };
   // ชื่อรถ (ตั้งในแอป) ใช้เป็นหัวการ์ดใน hub
   const title = car?.settings?.carName || read('fl.carName', '') || 'Yaris ATIV Premium';
 
