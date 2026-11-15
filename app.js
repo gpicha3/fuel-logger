@@ -2055,11 +2055,17 @@ function hideSkeleton() {
   }, Math.max(0, SKELETON_MIN - (performance.now() - skeletonStart)));
 }
 // ลิงก์ตรงจาก Hub เช่น /fuel-logger/#car, #loan, #care, #settings, #add (เปิดฟอร์มเติมน้ำมัน)
+// #add?price=500 = เปิดฟอร์มเติมน้ำมันพร้อมกรอกราคา (Alpha แกะจากคำสั่ง "เติมน้ำมัน 500")
 function openFromHash() {
-  const id = decodeURIComponent(location.hash.slice(1));
+  const [id, query] = decodeURIComponent(location.hash.slice(1)).split('?');
   if (!id) return;
   history.replaceState(null, '', location.pathname + location.search);
-  if (id === 'add') startFill();
+  if (id === 'add') {
+    startFill();
+    const price = Number(new URLSearchParams(query || '').get('price'));
+    const input = $('#form [name="price"]') || document.querySelector('[name="price"]');
+    if (price > 0 && input) { input.value = String(price); input.dispatchEvent(new Event('input', { bubbles: true })); }
+  }
   else if (TABS.includes(id)) switchTab(id);
   else if (TAB_OF[id] || id === 'settings') {
     open(id);
