@@ -84,6 +84,8 @@ export async function getSummary() {
     fuelLow: e.remaining != null && !!e.range && e.remaining < e.range * 0.15,
     kmPerL: lastRated?.rate ?? e.kml ?? null,
     reminders,
+    // วันที่ของเลขไมล์ล่าสุด (เติมน้ำมันครั้งล่าสุด หรือเลขไมล์ที่จดเอง แล้วแต่อันไหนใหม่กว่า) สำหรับ "ไม่แน่ใจ"
+    mileageDate: iso([list[list.length - 1]?.d, C.odoReading(car, read(KEYS.odo, null))?.d].filter(Boolean).sort((a, b) => b - a)[0] || null),
   };
   // ชื่อรถ (ตั้งในแอป) ใช้เป็นหัวการ์ดใน hub
   const title = car?.settings?.carName || read('fl.carName', '') || 'Yaris ATIV Premium';
